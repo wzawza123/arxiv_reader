@@ -45,6 +45,12 @@ export default function PaperDetail() {
     queryFn: () => PaperApi.get(pid),
     refetchInterval: 8_000,
   });
+  const figures = paper?.figures ?? [];
+  const previewFigureIndex = previewFigure
+    ? figures.findIndex((figure) => figure.id === previewFigure.id)
+    : -1;
+  const hasPreviousFigure = previewFigureIndex > 0;
+  const hasNextFigure = previewFigureIndex >= 0 && previewFigureIndex < figures.length - 1;
 
   const reprocess = useMutation({
     mutationFn: (stage: "translate" | "tag" | "summary" | "figures") =>
@@ -71,6 +77,21 @@ export default function PaperDetail() {
     resetFigurePreview();
   };
 
+  const showFigureAtIndex = (index: number) => {
+    const figure = figures[index];
+    if (!figure) return;
+    setPreviewFigure(figure);
+    resetFigurePreview();
+  };
+
+  const showPreviousFigure = () => {
+    showFigureAtIndex(previewFigureIndex - 1);
+  };
+
+  const showNextFigure = () => {
+    showFigureAtIndex(previewFigureIndex + 1);
+  };
+
   const zoomFigurePreview = (direction: "in" | "out") => {
     setPreviewZoom((current) =>
       clampZoom(direction === "in" ? current * ZOOM_STEP : current / ZOOM_STEP),
@@ -86,6 +107,10 @@ export default function PaperDetail() {
 
   const handlePreviewPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary) return;
+    if (event.target === event.currentTarget) {
+      closeFigurePreview();
+      return;
+    }
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsDraggingPreview(true);
@@ -126,6 +151,12 @@ export default function PaperDetail() {
         zoomFigurePreview("out");
       } else if (event.key === "0") {
         resetFigurePreview();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        showPreviousFigure();
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        showNextFigure();
       }
     };
 
@@ -137,7 +168,7 @@ export default function PaperDetail() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [previewFigure]);
+  }, [previewFigure, previewFigureIndex, figures]);
 
   if (isLoading || !paper) return <p className="text-sm text-slate-500">加载中...</p>;
 
@@ -260,7 +291,14 @@ export default function PaperDetail() {
         >
           <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-slate-950/80 px-4 py-3 backdrop-blur">
             <div className="min-w-0">
-              <div className="text-sm font-medium">Figure {previewFigure.idx}</div>
+              <div className="text-sm font-medium">
+                Figure {previewFigure.idx}
+                {previewFigureIndex >= 0 && (
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    {previewFigureIndex + 1} / {figures.length}
+                  </span>
+                )}
+              </div>
               {previewFigure.caption && (
                 <div className="mt-0.5 max-w-3xl truncate text-xs text-slate-300">
                   {previewFigure.caption}
@@ -301,6 +339,29 @@ export default function PaperDetail() {
               </button>
             </div>
           </div>
+
+          {figures.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={showPreviousFigure}
+                disabled={!hasPreviousFigure}
+                aria-label="上一张 figure"
+                className="absolute left-4 top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/70 text-3xl leading-none text-white shadow-lg transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-slate-950/70"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={showNextFigure}
+                disabled={!hasNextFigure}
+                aria-label="下一张 figure"
+                className="absolute right-4 top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/70 text-3xl leading-none text-white shadow-lg transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-slate-950/70"
+              >
+                ›
+              </button>
+            </>
+          )}
 
           <div
             className={`absolute inset-0 flex touch-none select-none items-center justify-center overflow-hidden px-4 pt-20 pb-6 ${
