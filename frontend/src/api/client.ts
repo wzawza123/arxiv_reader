@@ -69,6 +69,7 @@ export const PaperApi = {
   get: (id: number) => api.get<PaperDetail>(`/papers/${id}`).then((r) => r.data),
   patch: (id: number, body: { status?: string; tag_ids?: number[] }) =>
     api.patch<PaperDetail>(`/papers/${id}`, body).then((r) => r.data),
+  clearAll: () => api.delete<{ deleted: number }>("/papers").then((r) => r.data),
   reprocess: (id: number, stage: "translate" | "tag" | "summary" | "figures") =>
     api.post(`/papers/${id}/reprocess`, null, { params: { stage } }).then((r) => r.data),
   counts: () => api.get<Record<string, number>>("/papers/stats/counts").then((r) => r.data),

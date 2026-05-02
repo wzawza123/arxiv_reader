@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SettingsApi, SubsApi, TagApi, type Tag } from "../api/client";
+import { PaperApi, SettingsApi, SubsApi, TagApi, type Tag } from "../api/client";
 
 const COMMON_CATEGORIES = [
   "cs.AI",
@@ -31,6 +31,10 @@ export default function Settings() {
   const fetchSettings = useQuery({
     queryKey: ["fetch-settings"],
     queryFn: SettingsApi.getFetch,
+  });
+  const paperCounts = useQuery({
+    queryKey: ["counts"],
+    queryFn: PaperApi.counts,
   });
 
   const [kind, setKind] = useState<"category" | "keyword">("category");
@@ -120,6 +124,26 @@ export default function Settings() {
     onError: (error) => setTagError(getErrorMessage(error)),
   });
 
+  const clearAllPapers = useMutation({
+    mutationFn: PaperApi.clearAll,
+    onSuccess: () => {
+      qc.setQueryData(["counts"], {
+        new: 0,
+        to_read: 0,
+        read: 0,
+        not_interested: 0,
+      });
+      qc.invalidateQueries({ queryKey: ["papers"] });
+      qc.invalidateQueries({ queryKey: ["paper"] });
+      qc.invalidateQueries({ queryKey: ["counts"] });
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
+    },
+    onError: () => {
+      window.alert("清空失败，请检查后端服务或稍后重试。");
+    },
+  });
+
   const startTagEdit = (tag: Tag) => {
     setTagError(null);
     setEditingTag({
@@ -141,6 +165,20 @@ export default function Settings() {
     parsedFetchLookback >= 1 &&
     parsedFetchLookback <= 365 &&
     parsedFetchLookback !== currentFetchLookback;
+  const totalPapers = Object.values(paperCounts.data ?? {}).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+
+  const handleClearAllPapers = () => {
+    if (
+      window.confirm(
+        "确定清空所有论文列表？这会删除所有 paper、关联任务和 figure 记录。",
+      )
+    ) {
+      clearAllPapers.mutate();
+    }
+  };
 
   return (
     <section className="space-y-6">
@@ -182,6 +220,26 @@ export default function Settings() {
         {updateFetchSettings.isError && (
           <p className="text-xs text-rose-600 mt-2">
             {getErrorMessage(updateFetchSettings.error)}
+          </p>
+        )}
+      </div>
+
+      <div className="bg-white border rounded p-4">
+        <h2 className="font-semibold mb-3">数据维护</h2>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <button
+            type="button"
+            onClick={handleClearAllPapers}
+            disabled={totalPapers === 0 || clearAllPapers.isPending}
+            className="px-3 py-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {clearAllPapers.isPending ? "清空中..." : "清空论文"}
+          </button>
+          <span className="text-xs text-slate-500">当前共有 {totalPapers} 篇论文</span>
+        </div>
+        {clearAllPapers.isSuccess && (
+          <p className="text-xs text-emerald-700 mt-2">
+            已清空 {clearAllPapers.data.deleted} 篇论文。
           </p>
         )}
       </div>

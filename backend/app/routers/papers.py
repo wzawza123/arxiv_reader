@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, delete
 from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
-from ..models import Paper, PaperStatus, Tag, JobKind
+from ..models import Figure, Job, Paper, PaperStatus, PaperTag, Tag, JobKind
 from ..schemas import PaperListItem, PaperDetail, PaperPatch
 from ..workers.queue import get_queue, enqueue_heavy_for_to_read
 
@@ -38,6 +38,17 @@ def list_papers(
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     rows = db.execute(stmt).unique().scalars().all()
     return rows
+
+
+@router.delete("")
+def delete_all_papers(db: Session = Depends(get_db)):
+    paper_count = db.scalar(select(func.count(Paper.id))) or 0
+    db.execute(delete(Job).where(Job.paper_id.is_not(None)))
+    db.execute(delete(Figure))
+    db.execute(delete(PaperTag))
+    db.execute(delete(Paper))
+    db.commit()
+    return {"deleted": paper_count}
 
 
 @router.get("/{paper_id}", response_model=PaperDetail)
