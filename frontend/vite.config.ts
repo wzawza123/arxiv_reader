@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    allowedHosts: ["4kf5821882.qicp.vip"],
     proxy: {
       "/api": "http://127.0.0.1:8000",
       "/figures": "http://127.0.0.1:8000",
