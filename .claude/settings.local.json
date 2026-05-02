@@ -20,7 +20,8 @@
       "Bash(npm install *)",
       "Bash(rtk tsc *)",
       "Bash(rtk npm *)",
-      "Bash(rtk wc *)"
+      "Bash(rtk wc *)",
+      "Bash(rtk find *)"
     ]
   }
 }

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     WORKER_CONCURRENCY: int = 2
     FETCH_MAX_RESULTS_PER_QUERY: int = 50
     FETCH_LOOKBACK_DAYS: int = 2
+    SUMMARY_PDF_MAX_CHARS: int = 60000
 
     @property
     def data_dir_path(self) -> Path:

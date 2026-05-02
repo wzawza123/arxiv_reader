@@ -28,7 +28,7 @@ arxiv_fetch.fetch_subscriptions     enqueue_heavy_for_to_read
         │                                    │
         ▼                                    ▼
    new Paper rows  ──────────────►   summarize  +  extract_figures
-   (status=new)                       (LLM 3 问)   (PDF + Docling)
+   (status=new)                       (PDF + 3 次 LLM 问答)   (PDF + Docling)
         │
         ▼
 enqueue_light_for_new_paper
@@ -38,10 +38,10 @@ enqueue_light_for_new_paper
 ```
 
 - **拉取**（自动 / 手动）：仅做轻量处理 — 摘要中文翻译 + LLM 自动打 tag。
-- **被人工标记为「待阅读」** 之后才进重处理 — 三段中文阅读总结 + Docling figure 提取。
+- **被人工标记为「待阅读」** 之后才进重处理 — 基于 PDF 正文依次执行 3 次 LLM 问答，生成三段中文阅读总结 + Docling figure 提取。
 - 翻译 / tag / 总结 / figure 任务都持久化到 `jobs` 表；进程重启会自动把 `running` 重置为 `pending` 后重新入队。
 
-阅读总结由 LLM 按以下三段输出：
+阅读总结由 LLM 按以下三段依次询问并输出：
 1. **这篇论文尝试解决什么问题** — 每个问题后用 `→` 给出本文的结论 / 方法。
 2. **关键 Insight 表** — markdown 表格，列：主题 / 内容 / 出处段落。
 3. **后续工作头脑风暴** — 3-5 条可执行 follow-up，每条含现状、方案、风险。
@@ -107,6 +107,7 @@ cp backend/.env.example backend/.env
 | `DATA_DIR` | `./data` | PDF / figure 根目录 |
 | `FETCH_CRON_HOUR` / `_MINUTE` | `9` / `0` | 每日拉取时间（服务器本地时区） |
 | `WORKER_CONCURRENCY` | `2` | 后台 worker 数量 |
+| `SUMMARY_PDF_MAX_CHARS` | `60000` | LLM 总结时从 PDF 正文抽取的最大字符数 |
 | `FETCH_MAX_RESULTS_PER_QUERY` | `50` | 每个订阅最多拉多少条 |
 | `FETCH_LOOKBACK_DAYS` | `2` | 仅保留近 N 天发表的论文 |
 
@@ -147,7 +148,7 @@ npm run dev
    - `keyword = diffusion model`
 2. **任务** 页：点 “Fetch Now” 立即触发一次拉取（约 30s），或等每日 cron。
 3. **Inbox** 浏览新论文：自动出现中文摘要 + 自动 tag chips。
-4. 对感兴趣的点 **待阅读** → 后台立即跑 LLM 总结 + Docling figure 提取。
+4. 对感兴趣的点 **待阅读** → 后台立即跑基于 PDF 正文的 3 次 LLM 总结问答 + Docling figure 提取。
 5. **待阅读 → 论文详情**：左侧 markdown 三段总结，右侧 figure 缩略图。
 6. 看完打 **已读** / 失去兴趣打 **不感兴趣** 归档。
 

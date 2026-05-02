@@ -4,27 +4,13 @@ import asyncio
 import logging
 from pathlib import Path
 
-import httpx
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Figure, Paper
+from .pdfs import download_pdf
 
 log = logging.getLogger(__name__)
-
-
-def _download_pdf(arxiv_id: str, pdf_url: str) -> Path:
-    safe_id = arxiv_id.replace("/", "_")
-    out = settings.pdfs_dir / f"{safe_id}.pdf"
-    if out.exists() and out.stat().st_size > 0:
-        return out
-    with httpx.Client(timeout=60.0, follow_redirects=True) as client:
-        with client.stream("GET", pdf_url) as resp:
-            resp.raise_for_status()
-            with open(out, "wb") as f:
-                for chunk in resp.iter_bytes():
-                    f.write(chunk)
-    return out
 
 
 def _docling_extract(pdf_path: Path, out_dir: Path) -> list[tuple[int, Path, str | None]]:
@@ -85,7 +71,7 @@ async def extract_figures(db: Session, paper_id: int) -> None:
     out_dir = settings.figures_dir / safe_id
 
     def work() -> list[tuple[int, Path, str | None]]:
-        pdf_path = _download_pdf(paper.arxiv_id, paper.pdf_url)
+        pdf_path = download_pdf(paper.arxiv_id, paper.pdf_url)
         return _docling_extract(pdf_path, out_dir)
 
     saved = await asyncio.to_thread(work)
