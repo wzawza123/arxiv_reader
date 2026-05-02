@@ -11,6 +11,7 @@ from .config import settings
 from .db import init_db
 from .routers import jobs as jobs_router
 from .routers import papers as papers_router
+from .routers import settings as settings_router
 from .routers import subscriptions as subs_router
 from .routers import tags as tags_router
 from .workers.queue import init_queue
@@ -49,6 +50,7 @@ app.include_router(papers_router.router, prefix="/api")
 app.include_router(subs_router.router, prefix="/api")
 app.include_router(tags_router.router, prefix="/api")
 app.include_router(jobs_router.router, prefix="/api")
+app.include_router(settings_router.router, prefix="/api")
 
 # Serve extracted figures directly (faster than going through Python).
 app.mount(

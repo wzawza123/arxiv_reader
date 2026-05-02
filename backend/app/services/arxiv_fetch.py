@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Paper, PaperStatus, Subscription, SubscriptionKind
+from .app_settings import get_fetch_lookback_days
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ def fetch_subscriptions(db: Session) -> list[int]:
     if not subs:
         return []
 
-    cutoff = datetime.utcnow() - timedelta(days=settings.FETCH_LOOKBACK_DAYS)
+    cutoff = datetime.utcnow() - timedelta(days=get_fetch_lookback_days(db))
     new_ids: list[int] = []
     seen_arxiv_ids: set[str] = set()
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SubsApi, TagApi, type Tag } from "../api/client";
+import { SettingsApi, SubsApi, TagApi, type Tag } from "../api/client";
 
 const COMMON_CATEGORIES = [
   "cs.AI",
@@ -28,9 +28,14 @@ export default function Settings() {
   const qc = useQueryClient();
   const subs = useQuery({ queryKey: ["subs"], queryFn: SubsApi.list });
   const tags = useQuery({ queryKey: ["tags"], queryFn: TagApi.list });
+  const fetchSettings = useQuery({
+    queryKey: ["fetch-settings"],
+    queryFn: SettingsApi.getFetch,
+  });
 
   const [kind, setKind] = useState<"category" | "keyword">("category");
   const [value, setValue] = useState("");
+  const [fetchLookbackDays, setFetchLookbackDays] = useState<string | null>(null);
   const [tagName, setTagName] = useState("");
   const [tagDescription, setTagDescription] = useState("");
   const [editingTag, setEditingTag] = useState<{
@@ -63,6 +68,17 @@ export default function Settings() {
   const remove = useMutation({
     mutationFn: (id: number) => SubsApi.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["subs"] }),
+  });
+
+  const updateFetchSettings = useMutation({
+    mutationFn: () =>
+      SettingsApi.updateFetch({
+        fetch_lookback_days: Number(fetchLookbackDays),
+      }),
+    onSuccess: (data) => {
+      setFetchLookbackDays(String(data.fetch_lookback_days));
+      qc.invalidateQueries({ queryKey: ["fetch-settings"] });
+    },
   });
 
   const removeTag = useMutation({
@@ -113,8 +129,63 @@ export default function Settings() {
     });
   };
 
+  const currentFetchLookback =
+    fetchSettings.data?.fetch_lookback_days ??
+    fetchSettings.data?.default_fetch_lookback_days;
+  const fetchLookbackValue =
+    fetchLookbackDays ?? (currentFetchLookback !== undefined ? String(currentFetchLookback) : "");
+  const parsedFetchLookback = Number(fetchLookbackValue);
+  const canSaveFetchLookback =
+    currentFetchLookback !== undefined &&
+    Number.isInteger(parsedFetchLookback) &&
+    parsedFetchLookback >= 1 &&
+    parsedFetchLookback <= 365 &&
+    parsedFetchLookback !== currentFetchLookback;
+
   return (
     <section className="space-y-6">
+      <div className="bg-white border rounded p-4">
+        <h2 className="font-semibold mb-3">拉取设置</h2>
+        <div className="flex flex-wrap items-end gap-3 text-sm">
+          <label className="block">
+            <span className="block text-xs text-slate-500 mb-1">
+              只保留近 N 天发表的论文
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={fetchLookbackValue}
+              onChange={(e) => {
+                updateFetchSettings.reset();
+                setFetchLookbackDays(e.target.value);
+              }}
+              className="border rounded px-2 py-1 w-32"
+            />
+          </label>
+          <button
+            disabled={!canSaveFetchLookback || updateFetchSettings.isPending}
+            onClick={() => updateFetchSettings.mutate()}
+            className="bg-slate-800 text-white px-3 py-1 rounded disabled:opacity-50"
+          >
+            保存
+          </button>
+          {fetchSettings.data && (
+            <span className="text-xs text-slate-500">
+              默认值：{fetchSettings.data.default_fetch_lookback_days} 天
+            </span>
+          )}
+        </div>
+        {updateFetchSettings.isSuccess && (
+          <p className="text-xs text-emerald-700 mt-2">已保存，下次 Fetch 生效。</p>
+        )}
+        {updateFetchSettings.isError && (
+          <p className="text-xs text-rose-600 mt-2">
+            {getErrorMessage(updateFetchSettings.error)}
+          </p>
+        )}
+      </div>
+
       <div className="bg-white border rounded p-4">
         <h2 className="font-semibold mb-3">订阅 (Subscriptions)</h2>
         <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">

@@ -120,6 +120,14 @@ class Subscription(Base):
     __table_args__ = (UniqueConstraint("kind", "value", name="uq_subscription_kind_value"),)
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key = Column(String(128), primary_key=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Figure(Base):
     __tablename__ = "figures"
 

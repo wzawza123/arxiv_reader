@@ -58,6 +58,11 @@ export type Job = {
   created_at: string;
 };
 
+export type FetchSettings = {
+  fetch_lookback_days: number;
+  default_fetch_lookback_days: number;
+};
+
 export const PaperApi = {
   list: (params: { status?: string; tag?: string; q?: string; page?: number }) =>
     api.get<PaperListItem[]>("/papers", { params }).then((r) => r.data),
@@ -93,4 +98,10 @@ export const JobApi = {
     api
       .post<{ queued: number; new_papers: number }>("/jobs/fetch")
       .then((r) => r.data),
+};
+
+export const SettingsApi = {
+  getFetch: () => api.get<FetchSettings>("/settings/fetch").then((r) => r.data),
+  updateFetch: (body: { fetch_lookback_days: number }) =>
+    api.patch<FetchSettings>("/settings/fetch", body).then((r) => r.data),
 };

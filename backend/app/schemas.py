@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TagOut(BaseModel):
@@ -88,3 +88,12 @@ class JobOut(BaseModel):
 class FetchTriggerOut(BaseModel):
     queued: int
     new_papers: int
+
+
+class FetchSettingsIn(BaseModel):
+    fetch_lookback_days: int = Field(ge=1, le=365)
+
+
+class FetchSettingsOut(BaseModel):
+    fetch_lookback_days: int
+    default_fetch_lookback_days: int

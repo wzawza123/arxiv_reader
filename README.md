@@ -109,7 +109,7 @@ cp backend/.env.example backend/.env
 | `WORKER_CONCURRENCY` | `2` | 后台 worker 数量 |
 | `SUMMARY_PDF_MAX_CHARS` | `60000` | LLM 总结时从 PDF 正文抽取的最大字符数 |
 | `FETCH_MAX_RESULTS_PER_QUERY` | `50` | 每个订阅最多拉多少条 |
-| `FETCH_LOOKBACK_DAYS` | `2` | 仅保留近 N 天发表的论文 |
+| `FETCH_LOOKBACK_DAYS` | `2` | 仅保留近 N 天发表的论文；作为设置页未配置时的默认值 |
 
 ---
 
@@ -166,6 +166,7 @@ npm run dev
 | `GET` | `/api/papers/stats/counts` | 各 status 计数（首页 nav 角标） |
 | `GET` `POST` | `/api/subscriptions` | 订阅列表 / 新建 |
 | `PATCH` `DELETE` | `/api/subscriptions/{id}` | 修改 / 删除 |
+| `GET` `PATCH` | `/api/settings/fetch` | 查看 / 修改拉取窗口天数 |
 | `GET` | `/api/tags` | tag 库 + 每个 tag 的论文数 |
 | `PATCH` `DELETE` | `/api/tags/{id}` | 重命名 / 删除（级联清 PaperTag） |
 | `GET` | `/api/jobs?status=&limit=` | 后台任务列表（前端任务页 5s 轮询） |
