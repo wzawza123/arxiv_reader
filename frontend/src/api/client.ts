@@ -80,6 +80,10 @@ export const SubsApi = {
 
 export const TagApi = {
   list: () => api.get<Tag[]>("/tags").then((r) => r.data),
+  create: (body: { name: string; description?: string }) =>
+    api.post<Tag>("/tags", body).then((r) => r.data),
+  update: (id: number, body: { name?: string; description?: string }) =>
+    api.patch<Tag>(`/tags/${id}`, body).then((r) => r.data),
   remove: (id: number) => api.delete(`/tags/${id}`).then((r) => r.data),
 };
 

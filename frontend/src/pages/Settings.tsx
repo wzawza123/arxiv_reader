@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SubsApi, TagApi } from "../api/client";
+import { SubsApi, TagApi, type Tag } from "../api/client";
 
 const COMMON_CATEGORIES = [
   "cs.AI",
@@ -15,6 +15,15 @@ const COMMON_CATEGORIES = [
   "eess.IV",
 ];
 
+function getErrorMessage(error: unknown) {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const data = (error as { response?: { data?: { detail?: unknown } } }).response?.data;
+    if (typeof data?.detail === "string") return data.detail;
+  }
+  if (error instanceof Error) return error.message;
+  return "操作失败";
+}
+
 export default function Settings() {
   const qc = useQueryClient();
   const subs = useQuery({ queryKey: ["subs"], queryFn: SubsApi.list });
@@ -22,6 +31,20 @@ export default function Settings() {
 
   const [kind, setKind] = useState<"category" | "keyword">("category");
   const [value, setValue] = useState("");
+  const [tagName, setTagName] = useState("");
+  const [tagDescription, setTagDescription] = useState("");
+  const [editingTag, setEditingTag] = useState<{
+    id: number;
+    name: string;
+    description: string;
+  } | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
+
+  const invalidateTags = () => {
+    qc.invalidateQueries({ queryKey: ["tags"] });
+    qc.invalidateQueries({ queryKey: ["papers"] });
+    qc.invalidateQueries({ queryKey: ["paper"] });
+  };
 
   const create = useMutation({
     mutationFn: () => SubsApi.create({ kind, value: value.trim(), enabled: true }),
@@ -44,8 +67,51 @@ export default function Settings() {
 
   const removeTag = useMutation({
     mutationFn: (id: number) => TagApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tags"] }),
+    onSuccess: (_data, id) => {
+      if (editingTag?.id === id) setEditingTag(null);
+      setTagError(null);
+      invalidateTags();
+    },
+    onError: (error) => setTagError(getErrorMessage(error)),
   });
+
+  const createTag = useMutation({
+    mutationFn: () =>
+      TagApi.create({
+        name: tagName,
+        description: tagDescription,
+      }),
+    onSuccess: () => {
+      setTagName("");
+      setTagDescription("");
+      setTagError(null);
+      invalidateTags();
+    },
+    onError: (error) => setTagError(getErrorMessage(error)),
+  });
+
+  const updateTag = useMutation({
+    mutationFn: (tag: { id: number; name: string; description: string }) =>
+      TagApi.update(tag.id, {
+        name: tag.name,
+        description: tag.description,
+      }),
+    onSuccess: () => {
+      setEditingTag(null);
+      setTagError(null);
+      invalidateTags();
+    },
+    onError: (error) => setTagError(getErrorMessage(error)),
+  });
+
+  const startTagEdit = (tag: Tag) => {
+    setTagError(null);
+    setEditingTag({
+      id: tag.id,
+      name: tag.name,
+      description: tag.description ?? "",
+    });
+  };
 
   return (
     <section className="space-y-6">
@@ -138,31 +204,127 @@ export default function Settings() {
       <div className="bg-white border rounded p-4">
         <h2 className="font-semibold mb-3">Tag 库</h2>
         <p className="text-xs text-slate-500 mb-2">
-          Tag 由 LLM 在拉取时自动维护；这里只能查看 / 删除。
+          Tag 可由 LLM 在拉取时自动维护，也可以在这里手动新增、重命名和补充描述。
         </p>
-        <div className="flex flex-wrap gap-1.5">
-          {tags.data?.map((t) => (
-            <span
-              key={t.id}
-              className="inline-flex items-center gap-1 text-xs bg-slate-100 border rounded px-2 py-1"
-              title={t.description ?? ""}
-            >
-              {t.name}
-              <span className="text-slate-400">({t.paper_count ?? 0})</span>
-              <button
-                onClick={() => {
-                  if (confirm(`删除 tag "${t.name}"?`)) removeTag.mutate(t.id);
-                }}
-                className="text-rose-500 ml-0.5"
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          {tags.data?.length === 0 && (
-            <span className="text-sm text-slate-400">尚无 tag</span>
-          )}
-        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (tagName.trim()) createTag.mutate();
+          }}
+          className="grid grid-cols-1 md:grid-cols-[minmax(180px,240px)_1fr_auto] gap-2 mb-3 text-sm"
+        >
+          <input
+            value={tagName}
+            onChange={(e) => setTagName(e.target.value)}
+            placeholder="tag name"
+            className="border rounded px-2 py-1"
+          />
+          <input
+            value={tagDescription}
+            onChange={(e) => setTagDescription(e.target.value)}
+            placeholder="description"
+            className="border rounded px-2 py-1"
+          />
+          <button
+            type="submit"
+            disabled={!tagName.trim() || createTag.isPending}
+            className="bg-slate-800 text-white px-3 py-1 rounded disabled:opacity-50"
+          >
+            添加 Tag
+          </button>
+        </form>
+        {tagError && <p className="text-xs text-rose-600 mb-2">{tagError}</p>}
+        <table className="text-sm w-full">
+          <thead className="text-left text-xs text-slate-500">
+            <tr>
+              <th className="py-1">Name</th>
+              <th>Description</th>
+              <th>Papers</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {tags.data?.map((t) => {
+              const isEditing = editingTag?.id === t.id;
+              return (
+                <tr key={t.id} className="border-t align-top">
+                  <td className="py-1.5 pr-2">
+                    {isEditing ? (
+                      <input
+                        value={editingTag.name}
+                        onChange={(e) =>
+                          setEditingTag({ ...editingTag, name: e.target.value })
+                        }
+                        className="border rounded px-2 py-1 w-full"
+                      />
+                    ) : (
+                      <span className="font-mono text-xs">{t.name}</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 pr-2 text-xs text-slate-600">
+                    {isEditing ? (
+                      <input
+                        value={editingTag.description}
+                        onChange={(e) =>
+                          setEditingTag({ ...editingTag, description: e.target.value })
+                        }
+                        className="border rounded px-2 py-1 w-full text-sm text-slate-800"
+                      />
+                    ) : (
+                      t.description || <span className="text-slate-400">无描述</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-xs text-slate-500">
+                    {t.paper_count ?? 0}
+                  </td>
+                  <td className="py-1.5 text-right whitespace-nowrap">
+                    {isEditing ? (
+                      <>
+                        <button
+                          disabled={!editingTag.name.trim() || updateTag.isPending}
+                          onClick={() => updateTag.mutate(editingTag)}
+                          className="text-blue-600 text-xs hover:underline disabled:opacity-50"
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={() => setEditingTag(null)}
+                          className="text-slate-500 text-xs hover:underline ml-3"
+                        >
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => startTagEdit(t)}
+                          className="text-blue-600 text-xs hover:underline"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`删除 tag "${t.name}"?`)) removeTag.mutate(t.id);
+                          }}
+                          className="text-rose-600 text-xs hover:underline ml-3"
+                        >
+                          删除
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {tags.data?.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-3 text-slate-400 text-sm text-center">
+                  尚无 tag
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </section>
   );

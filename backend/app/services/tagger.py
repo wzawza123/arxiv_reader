@@ -7,6 +7,7 @@ from typing import Iterable
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..models import Paper, Tag
 from .nvidia_llm import chat_complete, load_prompt
 
@@ -69,11 +70,11 @@ async def auto_tag(db: Session, paper_id: int) -> None:
         title=paper.title.strip(),
         abstract=paper.abstract.strip(),
     )
-    raw = await chat_complete(prompt, max_tokens=512)
+    raw = await chat_complete(prompt, max_tokens=settings.LLM_MAX_TOKENS)
     try:
         data = _extract_json(raw)
-    except Exception:
-        return
+    except Exception as exc:
+        raise ValueError(f"failed to parse tag JSON: {raw[:500]!r}") from exc
 
     selected = [str(x) for x in data.get("selected", []) if isinstance(x, str)]
     new_items = data.get("new", []) or []
@@ -91,6 +92,9 @@ async def auto_tag(db: Session, paper_id: int) -> None:
             descriptions[_normalize_tag_name(nm)] = desc
 
     all_names = selected + new_names
+    if not all_names:
+        raise ValueError(f"tagger returned no tags: {raw[:500]!r}")
+
     tags = _upsert_tags(db, all_names, descriptions)
 
     # replace the paper's tags with the new set

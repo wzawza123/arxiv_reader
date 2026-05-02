@@ -11,6 +11,16 @@ class TagOut(BaseModel):
     description: Optional[str] = None
 
 
+class TagIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class TagPatch(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
 class FigureOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
