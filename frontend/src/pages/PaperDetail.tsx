@@ -253,7 +253,7 @@ export default function PaperDetail() {
               <p className="text-xs text-slate-400">
                 {paper.status === "to_read"
                   ? "正在提取或暂未提取到 figure。"
-                  : "标记为待阅读后会自动提取。"}
+                  : "可按设置自动提取，也可在这里手动重跑 Figures。"}
               </p>
             )}
             <div className="grid grid-cols-2 gap-2">

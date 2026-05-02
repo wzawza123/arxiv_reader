@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import get_db
 from ..models import Figure, Job, Paper, PaperStatus, PaperTag, Tag, JobKind
 from ..schemas import PaperListItem, PaperDetail, PaperPatch
+from ..services.app_settings import HEAVY_PROCESSING_ON_TO_READ, get_heavy_processing_trigger
 from ..workers.queue import get_queue, enqueue_heavy_for_to_read
 
 router = APIRouter(prefix="/papers", tags=["papers"])
@@ -68,7 +69,11 @@ def update_paper(paper_id: int, patch: PaperPatch, db: Session = Depends(get_db)
     trigger_heavy = False
     if patch.status is not None:
         new_status = PaperStatus(patch.status)
-        if paper.status != PaperStatus.TO_READ and new_status == PaperStatus.TO_READ:
+        if (
+            paper.status != PaperStatus.TO_READ
+            and new_status == PaperStatus.TO_READ
+            and get_heavy_processing_trigger(db) == HEAVY_PROCESSING_ON_TO_READ
+        ):
             trigger_heavy = True
         paper.status = new_status
 

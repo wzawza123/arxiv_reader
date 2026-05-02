@@ -90,10 +90,16 @@ class FetchTriggerOut(BaseModel):
     new_papers: int
 
 
+HeavyProcessingTrigger = Literal["on_fetch", "on_to_read"]
+
+
 class FetchSettingsIn(BaseModel):
-    fetch_lookback_days: int = Field(ge=1, le=365)
+    fetch_lookback_days: Optional[int] = Field(default=None, ge=1, le=365)
+    heavy_processing_trigger: Optional[HeavyProcessingTrigger] = None
 
 
 class FetchSettingsOut(BaseModel):
     fetch_lookback_days: int
     default_fetch_lookback_days: int
+    heavy_processing_trigger: HeavyProcessingTrigger
+    default_heavy_processing_trigger: HeavyProcessingTrigger

@@ -9,7 +9,8 @@ from apscheduler.triggers.cron import CronTrigger
 from ..config import settings
 from ..db import SessionLocal
 from ..services.arxiv_fetch import fetch_subscriptions
-from .queue import enqueue_light_for_new_paper
+from ..services.app_settings import HEAVY_PROCESSING_ON_FETCH, get_heavy_processing_trigger
+from .queue import enqueue_heavy_for_to_read, enqueue_light_for_new_paper
 
 log = logging.getLogger(__name__)
 
@@ -20,9 +21,15 @@ def run_fetch_now() -> tuple[int, int]:
     """Run fetch synchronously; return (new_paper_count, queued_jobs)."""
     with SessionLocal() as db:
         new_ids = fetch_subscriptions(db)
+        heavy_on_fetch = get_heavy_processing_trigger(db) == HEAVY_PROCESSING_ON_FETCH
+    queued = 0
     for pid in new_ids:
         enqueue_light_for_new_paper(pid)
-    return len(new_ids), 2 * len(new_ids)
+        queued += 2
+        if heavy_on_fetch:
+            enqueue_heavy_for_to_read(pid)
+            queued += 2
+    return len(new_ids), queued
 
 
 async def start_scheduler() -> AsyncIOScheduler:

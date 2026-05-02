@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PaperApi, SettingsApi, SubsApi, TagApi, type Tag } from "../api/client";
+import {
+  PaperApi,
+  SettingsApi,
+  SubsApi,
+  TagApi,
+  type HeavyProcessingTrigger,
+  type Tag,
+} from "../api/client";
 
 const COMMON_CATEGORIES = [
   "cs.AI",
@@ -81,6 +88,16 @@ export default function Settings() {
       }),
     onSuccess: (data) => {
       setFetchLookbackDays(String(data.fetch_lookback_days));
+      qc.setQueryData(["fetch-settings"], data);
+      qc.invalidateQueries({ queryKey: ["fetch-settings"] });
+    },
+  });
+
+  const updateHeavyProcessingTrigger = useMutation({
+    mutationFn: (heavy_processing_trigger: HeavyProcessingTrigger) =>
+      SettingsApi.updateFetch({ heavy_processing_trigger }),
+    onSuccess: (data) => {
+      qc.setQueryData(["fetch-settings"], data);
       qc.invalidateQueries({ queryKey: ["fetch-settings"] });
     },
   });
@@ -165,6 +182,10 @@ export default function Settings() {
     parsedFetchLookback >= 1 &&
     parsedFetchLookback <= 365 &&
     parsedFetchLookback !== currentFetchLookback;
+  const currentHeavyProcessingTrigger =
+    fetchSettings.data?.heavy_processing_trigger ??
+    fetchSettings.data?.default_heavy_processing_trigger;
+  const heavyProcessingOnFetch = currentHeavyProcessingTrigger === "on_fetch";
   const totalPapers = Object.values(paperCounts.data ?? {}).reduce(
     (sum, count) => sum + count,
     0,
@@ -222,6 +243,40 @@ export default function Settings() {
             {getErrorMessage(updateFetchSettings.error)}
           </p>
         )}
+        <div className="mt-4 border-t pt-4">
+          <h3 className="text-sm font-medium mb-2">重处理时机</h3>
+          <label className="flex flex-wrap items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={heavyProcessingOnFetch}
+              disabled={
+                currentHeavyProcessingTrigger === undefined ||
+                updateHeavyProcessingTrigger.isPending
+              }
+              onChange={(e) =>
+                updateHeavyProcessingTrigger.mutate(
+                  e.currentTarget.checked ? "on_fetch" : "on_to_read",
+                )
+              }
+              className="sr-only peer"
+            />
+            <span className="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-slate-300 transition peer-checked:bg-blue-600 peer-disabled:opacity-50 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5" />
+            <span className="font-medium">
+              {heavyProcessingOnFetch ? "Fetch 时自动处理" : "点待阅读时处理"}
+            </span>
+          </label>
+          <p className="text-xs text-slate-500 mt-2">
+            开启后，新论文被 fetch 到本地时立即入队总结和 figure 提取；关闭时，只有手动标记为「待阅读」才入队这些重任务。
+          </p>
+          {updateHeavyProcessingTrigger.isSuccess && (
+            <p className="text-xs text-emerald-700 mt-2">已保存，之后的触发动作生效。</p>
+          )}
+          {updateHeavyProcessingTrigger.isError && (
+            <p className="text-xs text-rose-600 mt-2">
+              {getErrorMessage(updateHeavyProcessingTrigger.error)}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="bg-white border rounded p-4">

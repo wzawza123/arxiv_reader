@@ -37,8 +37,9 @@ enqueue_light_for_new_paper
   translate (摘要中译)  +  auto_tag (LLM 自动维护 tag 库)
 ```
 
-- **拉取**（自动 / 手动）：仅做轻量处理 — 摘要中文翻译 + LLM 自动打 tag。
-- **被人工标记为「待阅读」** 之后才进重处理 — 基于 PDF 正文依次执行 3 次 LLM 问答，生成三段中文阅读总结 + Docling figure 提取。
+- **拉取**（自动 / 手动）：总是为新论文入队轻量处理 — 摘要中文翻译 + LLM 自动打 tag。
+- **重处理时机可在设置页切换**：默认在被人工标记为「待阅读」之后执行；也可以改为新论文被 fetch 到本地时立即执行。
+- **重处理内容**：基于 PDF 正文依次执行 3 次 LLM 问答，生成三段中文阅读总结 + Docling figure 提取。
 - 翻译 / tag / 总结 / figure 任务都持久化到 `jobs` 表；进程重启会自动把 `running` 重置为 `pending` 后重新入队。
 
 阅读总结由 LLM 按以下三段依次询问并输出：
@@ -154,6 +155,8 @@ npm run dev
 5. **待阅读 → 论文详情**：左侧 markdown 三段总结，右侧 figure 缩略图。
 6. 看完打 **已读** / 失去兴趣打 **不感兴趣** 归档。
 
+如果在设置页开启“Fetch 时自动处理”，第 4 步的重处理会提前到新论文 fetch 后执行，点 **待阅读** 只改变阅读状态。
+
 ---
 
 ## API
@@ -163,12 +166,12 @@ npm run dev
 | `GET` | `/api/health` | 健康检查 |
 | `GET` | `/api/papers?status=&tag=&q=&page=&page_size=` | 论文列表（按 status/tag/搜索词过滤） |
 | `GET` | `/api/papers/{id}` | 论文详情（含 figure / 三段 md） |
-| `PATCH` | `/api/papers/{id}` | 改 `status` 或 `tag_ids`；`status` 切到 `to_read` 自动入重处理队列 |
+| `PATCH` | `/api/papers/{id}` | 改 `status` 或 `tag_ids`；默认设置下 `status` 切到 `to_read` 会入重处理队列 |
 | `POST` | `/api/papers/{id}/reprocess?stage=translate\|tag\|summary\|figures` | 手动重跑某一阶段 |
 | `GET` | `/api/papers/stats/counts` | 各 status 计数（首页 nav 角标） |
 | `GET` `POST` | `/api/subscriptions` | 订阅列表 / 新建 |
 | `PATCH` `DELETE` | `/api/subscriptions/{id}` | 修改 / 删除 |
-| `GET` `PATCH` | `/api/settings/fetch` | 查看 / 修改拉取窗口天数 |
+| `GET` `PATCH` | `/api/settings/fetch` | 查看 / 修改拉取窗口天数，以及 summary / figure 的触发时机 |
 | `GET` | `/api/tags` | tag 库 + 每个 tag 的论文数 |
 | `PATCH` `DELETE` | `/api/tags/{id}` | 重命名 / 删除（级联清 PaperTag） |
 | `GET` | `/api/jobs?status=&limit=` | 后台任务列表（前端任务页 5s 轮询） |
@@ -186,7 +189,7 @@ curl -X POST http://127.0.0.1:8000/api/subscriptions \
 # 立刻拉一次
 curl -X POST http://127.0.0.1:8000/api/jobs/fetch
 
-# 标记 paper_id=42 为待阅读（自动入重处理队列）
+# 标记 paper_id=42 为待阅读（默认设置下自动入重处理队列）
 curl -X PATCH http://127.0.0.1:8000/api/papers/42 \
   -H 'content-type: application/json' \
   -d '{"status":"to_read"}'

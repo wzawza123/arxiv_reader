@@ -61,7 +61,11 @@ export type Job = {
 export type FetchSettings = {
   fetch_lookback_days: number;
   default_fetch_lookback_days: number;
+  heavy_processing_trigger: HeavyProcessingTrigger;
+  default_heavy_processing_trigger: HeavyProcessingTrigger;
 };
+
+export type HeavyProcessingTrigger = "on_fetch" | "on_to_read";
 
 export const PaperApi = {
   list: (params: { status?: string; tag?: string; q?: string; page?: number }) =>
@@ -104,6 +108,9 @@ export const JobApi = {
 
 export const SettingsApi = {
   getFetch: () => api.get<FetchSettings>("/settings/fetch").then((r) => r.data),
-  updateFetch: (body: { fetch_lookback_days: number }) =>
+  updateFetch: (body: {
+    fetch_lookback_days?: number;
+    heavy_processing_trigger?: HeavyProcessingTrigger;
+  }) =>
     api.patch<FetchSettings>("/settings/fetch", body).then((r) => r.data),
 };

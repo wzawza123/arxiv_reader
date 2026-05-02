@@ -38,7 +38,7 @@ export default function Jobs() {
       </div>
       {fetchNow.data && (
         <p className="text-sm text-emerald-700 mb-2">
-          已拉取 {fetchNow.data.new_papers} 篇新论文，入队 {fetchNow.data.queued} 个轻量任务。
+          已拉取 {fetchNow.data.new_papers} 篇新论文，入队 {fetchNow.data.queued} 个后台任务。
         </p>
       )}
       <table className="w-full text-sm bg-white border rounded">
