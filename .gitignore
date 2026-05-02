@@ -1,0 +1,42 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.venv/
+venv/
+.python-version
+
+# --- env ---
+.env
+.env.*
+!.env.example
+
+# --- backend data (SQLite + downloaded PDFs + extracted figures) ---
+backend/data/arxiv.db
+backend/data/arxiv.db-journal
+backend/data/arxiv.db-wal
+backend/data/arxiv.db-shm
+backend/data/pdfs/
+backend/data/figures/
+
+# --- frontend ---
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+*.local
+
+# --- logs ---
+*.log
+logs/
+
+# --- editors / OS ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

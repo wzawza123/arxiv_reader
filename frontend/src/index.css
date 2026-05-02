@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.markdown table {
+  @apply w-full border-collapse my-3;
+}
+.markdown th,
+.markdown td {
+  @apply border border-slate-300 px-2 py-1 text-sm align-top;
+}
+.markdown th {
+  @apply bg-slate-100 text-left;
+}
+.markdown h2 {
+  @apply text-lg font-semibold mt-4 mb-2;
+}
+.markdown ul {
+  @apply list-disc pl-6 my-2;
+}
+.markdown li {
+  @apply my-1;
+}
+.markdown code {
+  @apply bg-slate-100 rounded px-1 py-0.5 text-xs;
+}
+.markdown a {
+  @apply text-blue-600 underline;
+}

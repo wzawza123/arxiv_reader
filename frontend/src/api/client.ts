@@ -1,0 +1,92 @@
+import axios from "axios";
+
+export const api = axios.create({ baseURL: "/api" });
+
+export type Tag = {
+  id: number;
+  name: string;
+  description?: string | null;
+  paper_count?: number;
+};
+
+export type Figure = {
+  id: number;
+  idx: number;
+  path: string;
+  caption?: string | null;
+};
+
+export type PaperListItem = {
+  id: number;
+  arxiv_id: string;
+  title: string;
+  authors: string[];
+  abstract: string;
+  abstract_zh: string | null;
+  categories: string[];
+  abs_url: string;
+  pdf_url: string;
+  published_at: string;
+  status: "new" | "to_read" | "not_interested" | "read";
+  tags: Tag[];
+};
+
+export type PaperDetail = PaperListItem & {
+  summary_md: string | null;
+  insights_md: string | null;
+  followup_md: string | null;
+  figures: Figure[];
+};
+
+export type Subscription = {
+  id: number;
+  kind: "category" | "keyword";
+  value: string;
+  enabled: boolean;
+  created_at: string;
+  last_fetched_at: string | null;
+};
+
+export type Job = {
+  id: number;
+  paper_id: number | null;
+  kind: string;
+  status: "pending" | "running" | "done" | "failed";
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+};
+
+export const PaperApi = {
+  list: (params: { status?: string; tag?: string; q?: string; page?: number }) =>
+    api.get<PaperListItem[]>("/papers", { params }).then((r) => r.data),
+  get: (id: number) => api.get<PaperDetail>(`/papers/${id}`).then((r) => r.data),
+  patch: (id: number, body: { status?: string; tag_ids?: number[] }) =>
+    api.patch<PaperDetail>(`/papers/${id}`, body).then((r) => r.data),
+  reprocess: (id: number, stage: "translate" | "tag" | "summary" | "figures") =>
+    api.post(`/papers/${id}/reprocess`, null, { params: { stage } }).then((r) => r.data),
+  counts: () => api.get<Record<string, number>>("/papers/stats/counts").then((r) => r.data),
+};
+
+export const SubsApi = {
+  list: () => api.get<Subscription[]>("/subscriptions").then((r) => r.data),
+  create: (body: { kind: string; value: string; enabled?: boolean }) =>
+    api.post<Subscription>("/subscriptions", body).then((r) => r.data),
+  update: (id: number, body: { kind: string; value: string; enabled: boolean }) =>
+    api.patch<Subscription>(`/subscriptions/${id}`, body).then((r) => r.data),
+  remove: (id: number) => api.delete(`/subscriptions/${id}`).then((r) => r.data),
+};
+
+export const TagApi = {
+  list: () => api.get<Tag[]>("/tags").then((r) => r.data),
+  remove: (id: number) => api.delete(`/tags/${id}`).then((r) => r.data),
+};
+
+export const JobApi = {
+  list: () => api.get<Job[]>("/jobs").then((r) => r.data),
+  fetchNow: () =>
+    api
+      .post<{ queued: number; new_papers: number }>("/jobs/fetch")
+      .then((r) => r.data),
+};
