@@ -32,8 +32,8 @@ export default function PaperListWithTagFilter({
   });
 
   const tagsQuery = useQuery({
-    queryKey: ["tags"],
-    queryFn: TagApi.list,
+    queryKey: ["tags", status],
+    queryFn: () => TagApi.list({ status }),
     refetchInterval: 30_000,
   });
 

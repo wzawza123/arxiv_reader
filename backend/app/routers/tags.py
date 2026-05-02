@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import PaperTag, Tag
+from ..models import Paper, PaperStatus, PaperTag, Tag
 from ..schemas import TagIn, TagOut, TagPatch
 
 router = APIRouter(prefix="/tags", tags=["tags"])
@@ -29,13 +29,23 @@ def _ensure_unique_name(db: Session, name: str, tag_id: int | None = None) -> No
 
 
 @router.get("", response_model=list[dict])
-def list_tags(db: Session = Depends(get_db)):
-    rows = db.execute(
-        select(Tag, func.count(PaperTag.paper_id))
-        .outerjoin(PaperTag, PaperTag.tag_id == Tag.id)
-        .group_by(Tag.id)
-        .order_by(Tag.name)
-    ).all()
+def list_tags(
+    status: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    stmt = select(Tag, func.count(PaperTag.paper_id)).outerjoin(
+        PaperTag, PaperTag.tag_id == Tag.id
+    )
+    if status:
+        try:
+            paper_status = PaperStatus(status)
+        except ValueError:
+            raise HTTPException(400, f"invalid status: {status}")
+        stmt = stmt.join(Paper, Paper.id == PaperTag.paper_id).where(
+            Paper.status == paper_status
+        )
+
+    rows = db.execute(stmt.group_by(Tag.id).order_by(Tag.name)).all()
     return [
         {
             "id": t.id,

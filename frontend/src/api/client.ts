@@ -85,7 +85,8 @@ export const SubsApi = {
 };
 
 export const TagApi = {
-  list: () => api.get<Tag[]>("/tags").then((r) => r.data),
+  list: (params?: { status?: string }) =>
+    api.get<Tag[]>("/tags", { params }).then((r) => r.data),
   create: (body: { name: string; description?: string }) =>
     api.post<Tag>("/tags", body).then((r) => r.data),
   update: (id: number, body: { name?: string; description?: string }) =>

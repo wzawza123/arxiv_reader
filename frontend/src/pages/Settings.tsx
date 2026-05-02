@@ -27,7 +27,7 @@ function getErrorMessage(error: unknown) {
 export default function Settings() {
   const qc = useQueryClient();
   const subs = useQuery({ queryKey: ["subs"], queryFn: SubsApi.list });
-  const tags = useQuery({ queryKey: ["tags"], queryFn: TagApi.list });
+  const tags = useQuery({ queryKey: ["tags"], queryFn: () => TagApi.list() });
   const fetchSettings = useQuery({
     queryKey: ["fetch-settings"],
     queryFn: SettingsApi.getFetch,
