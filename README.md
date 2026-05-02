@@ -110,6 +110,7 @@ cp backend/.env.example backend/.env
 | `SUMMARY_PDF_MAX_CHARS` | `60000` | LLM 总结时从 PDF 正文抽取的最大字符数 |
 | `FETCH_MAX_RESULTS_PER_QUERY` | `50` | 每个订阅最多拉多少条 |
 | `FETCH_LOOKBACK_DAYS` | `2` | 仅保留近 N 天发表的论文；作为设置页未配置时的默认值 |
+| `FETCH_CATEGORY_PREFIX` | `cs.` | 默认只保留该 arXiv 大类下的论文；`cs.` 表示 Computer Science |
 
 ---
 
@@ -146,6 +147,7 @@ npm run dev
    - `category = cs.CV`
    - `category = cs.LG`
    - `keyword = diffusion model`
+   关键词订阅默认会限制在 `FETCH_CATEGORY_PREFIX=cs.` 对应的 Computer Science 大类下。
 2. **任务** 页：点 “Fetch Now” 立即触发一次拉取（约 30s），或等每日 cron。
 3. **Inbox** 浏览新论文：自动出现中文摘要 + 自动 tag chips。
 4. 对感兴趣的点 **待阅读** → 后台立即跑基于 PDF 正文的 3 次 LLM 总结问答 + Docling figure 提取。

@@ -11,8 +11,8 @@ const COMMON_CATEGORIES = [
   "cs.IR",
   "cs.GR",
   "cs.MM",
-  "stat.ML",
-  "eess.IV",
+  "cs.SE",
+  "cs.DB",
 ];
 
 function getErrorMessage(error: unknown) {

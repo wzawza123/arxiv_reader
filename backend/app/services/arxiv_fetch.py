@@ -15,12 +15,44 @@ from .app_settings import get_fetch_lookback_days
 log = logging.getLogger(__name__)
 
 
+def _fetch_category_prefix() -> str:
+    return settings.FETCH_CATEGORY_PREFIX.strip()
+
+
+def _category_scope_query() -> str:
+    prefix = _fetch_category_prefix()
+    if not prefix:
+        return ""
+    if prefix.endswith("."):
+        category = f"{prefix}*"
+    elif "." not in prefix:
+        category = f"{prefix}.*"
+    else:
+        category = prefix
+    return f"cat:{category}"
+
+
+def _has_category_in_scope(categories: Iterable[str]) -> bool:
+    prefix = _fetch_category_prefix()
+    if not prefix:
+        return True
+    prefix = prefix.lower()
+    return any(c.lower().startswith(prefix) for c in categories)
+
+
 def _build_query(sub: Subscription) -> str:
+    scope_query = _category_scope_query()
     if sub.kind == SubscriptionKind.CATEGORY:
-        return f"cat:{sub.value}"
+        category_query = f"cat:{sub.value}"
+        if not scope_query or _has_category_in_scope([sub.value]):
+            return category_query
+        return f"({scope_query}) AND {category_query}"
     # keyword: search title + abstract
     val = sub.value.replace('"', '')
-    return f'all:"{val}"'
+    keyword_query = f'all:"{val}"'
+    if scope_query:
+        return f"({scope_query}) AND {keyword_query}"
+    return keyword_query
 
 
 def _to_naive_utc(dt: datetime) -> datetime:
@@ -73,6 +105,10 @@ def fetch_subscriptions(db: Session) -> list[int]:
             continue
 
         for r in results:
+            categories = list(r.categories or [])
+            if not _has_category_in_scope(categories):
+                continue
+
             arxiv_id = _normalize_arxiv_id(r.entry_id)
             if arxiv_id in seen_arxiv_ids:
                 continue
@@ -93,7 +129,7 @@ def fetch_subscriptions(db: Session) -> list[int]:
                 title=(r.title or "").strip().replace("\n", " "),
                 authors=[a.name for a in (r.authors or [])],
                 abstract=(r.summary or "").strip(),
-                categories=list(r.categories or []),
+                categories=categories,
                 pdf_url=r.pdf_url,
                 abs_url=r.entry_id,
                 published_at=published,
