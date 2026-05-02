@@ -57,6 +57,14 @@ def download_pdf(arxiv_id: str, pdf_url: str) -> Path:
     return out
 
 
+def delete_downloaded_pdf(arxiv_id: str) -> bool:
+    pdf_path = pdf_path_for(arxiv_id)
+    existed = pdf_path.exists()
+    pdf_path.unlink(missing_ok=True)
+    pdf_path.with_suffix(pdf_path.suffix + ".tmp").unlink(missing_ok=True)
+    return existed
+
+
 def _normalize_text(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = [_SPACES_RE.sub(" ", line).strip() for line in text.split("\n")]

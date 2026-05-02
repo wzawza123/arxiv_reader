@@ -266,7 +266,8 @@ export default function Settings() {
             </span>
           </label>
           <p className="text-xs text-slate-500 mt-2">
-            开启后，新论文被 fetch 到本地时立即入队总结和 figure 提取；关闭时，只有手动标记为「待阅读」才入队这些重任务。
+            开启后，新论文被 fetch 到本地时立即入队总结和 figure 提取；标记为「待阅读」时会补跑尚未完成或尚未排队的重任务。
+            关闭时，只有手动标记为「待阅读」才入队这些重任务。
           </p>
           {updateHeavyProcessingTrigger.isSuccess && (
             <p className="text-xs text-emerald-700 mt-2">已保存，之后的触发动作生效。</p>

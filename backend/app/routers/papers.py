@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,10 +10,20 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import get_db
 from ..models import Figure, Job, Paper, PaperStatus, PaperTag, Tag, JobKind
 from ..schemas import PaperListItem, PaperDetail, PaperPatch
-from ..services.app_settings import HEAVY_PROCESSING_ON_TO_READ, get_heavy_processing_trigger
-from ..workers.queue import get_queue, enqueue_heavy_for_to_read
+from ..services.app_settings import (
+    HEAVY_PROCESSING_ON_FETCH,
+    HEAVY_PROCESSING_ON_TO_READ,
+    get_heavy_processing_trigger,
+)
+from ..services.pdfs import delete_downloaded_pdf
+from ..workers.queue import (
+    enqueue_heavy_for_to_read,
+    enqueue_missing_heavy_for_to_read,
+    get_queue,
+)
 
 router = APIRouter(prefix="/papers", tags=["papers"])
+log = logging.getLogger(__name__)
 
 
 @router.get("", response_model=list[PaperListItem])
@@ -67,14 +78,19 @@ def update_paper(paper_id: int, patch: PaperPatch, db: Session = Depends(get_db)
         raise HTTPException(404)
 
     trigger_heavy = False
+    trigger_missing_heavy = False
+    delete_local_pdf = False
     if patch.status is not None:
         new_status = PaperStatus(patch.status)
-        if (
-            paper.status != PaperStatus.TO_READ
-            and new_status == PaperStatus.TO_READ
-            and get_heavy_processing_trigger(db) == HEAVY_PROCESSING_ON_TO_READ
-        ):
-            trigger_heavy = True
+        moved_to_to_read = paper.status != PaperStatus.TO_READ and new_status == PaperStatus.TO_READ
+        if moved_to_to_read:
+            heavy_trigger = get_heavy_processing_trigger(db)
+            if heavy_trigger == HEAVY_PROCESSING_ON_TO_READ:
+                trigger_heavy = True
+            elif heavy_trigger == HEAVY_PROCESSING_ON_FETCH:
+                trigger_missing_heavy = True
+        if new_status == PaperStatus.NOT_INTERESTED:
+            delete_local_pdf = True
         paper.status = new_status
 
     if patch.tag_ids is not None:
@@ -87,6 +103,13 @@ def update_paper(paper_id: int, patch: PaperPatch, db: Session = Depends(get_db)
 
     if trigger_heavy:
         enqueue_heavy_for_to_read(paper.id)
+    if trigger_missing_heavy:
+        enqueue_missing_heavy_for_to_read(paper.id)
+    if delete_local_pdf:
+        try:
+            delete_downloaded_pdf(paper.arxiv_id)
+        except OSError as e:
+            log.warning("failed to delete downloaded PDF for %s: %s", paper.arxiv_id, e)
 
     return paper
 

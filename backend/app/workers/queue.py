@@ -18,6 +18,7 @@ from ..config import settings
 from ..db import SessionLocal
 from ..models import Job, JobKind, JobStatus, PaperStatus, Paper
 from ..services import figure_extractor, summarizer, tagger, translator
+from ..services.pdfs import delete_downloaded_pdf
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +48,15 @@ HANDLERS: dict[JobKind, HandlerFn] = {
     JobKind.SUMMARY: _run_summary,
     JobKind.FIGURES: _run_figures,
 }
+
+PDF_JOB_KINDS = {JobKind.SUMMARY, JobKind.FIGURES}
+
+
+def _delete_downloaded_pdf_safely(arxiv_id: str) -> None:
+    try:
+        delete_downloaded_pdf(arxiv_id)
+    except OSError as e:
+        log.warning("failed to delete downloaded PDF for %s: %s", arxiv_id, e)
 
 
 class JobQueue:
@@ -139,6 +149,19 @@ class JobQueue:
                     db.commit()
             return
 
+        if kind in PDF_JOB_KINDS:
+            with SessionLocal() as db:
+                paper = db.get(Paper, paper_id)
+                if paper is not None and paper.status == PaperStatus.NOT_INTERESTED:
+                    _delete_downloaded_pdf_safely(paper.arxiv_id)
+                    job = db.get(Job, jid)
+                    if job:
+                        job.status = JobStatus.DONE
+                        job.error = None
+                        job.finished_at = datetime.utcnow()
+                        db.commit()
+                    return
+
         err: Optional[str] = None
         try:
             with SessionLocal() as db:
@@ -149,6 +172,9 @@ class JobQueue:
 
         with SessionLocal() as db:
             job = db.get(Job, jid)
+            paper = db.get(Paper, paper_id)
+            if kind in PDF_JOB_KINDS and paper is not None and paper.status == PaperStatus.NOT_INTERESTED:
+                _delete_downloaded_pdf_safely(paper.arxiv_id)
             if job:
                 job.status = JobStatus.FAILED if err else JobStatus.DONE
                 job.error = err
@@ -183,3 +209,33 @@ def enqueue_heavy_for_to_read(paper_id: int) -> None:
     q = get_queue()
     q.enqueue(JobKind.SUMMARY, paper_id)
     q.enqueue(JobKind.FIGURES, paper_id)
+
+
+def _has_job_with_status(db: Session, paper_id: int, kind: JobKind, statuses: set[JobStatus]) -> bool:
+    return (
+        db.execute(
+            select(Job.id)
+            .where(
+                Job.paper_id == paper_id,
+                Job.kind == kind,
+                Job.status.in_(statuses),
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        is not None
+    )
+
+
+def enqueue_missing_heavy_for_to_read(paper_id: int) -> int:
+    """Queue missing heavy work without duplicating completed or active jobs."""
+    q = get_queue()
+    satisfied_statuses = {JobStatus.DONE, JobStatus.PENDING, JobStatus.RUNNING}
+    with SessionLocal() as db:
+        missing = [
+            kind
+            for kind in (JobKind.SUMMARY, JobKind.FIGURES)
+            if not _has_job_with_status(db, paper_id, kind, satisfied_statuses)
+        ]
+    for kind in missing:
+        q.enqueue(kind, paper_id)
+    return len(missing)
