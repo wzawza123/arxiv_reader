@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "meta/llama-3.3-70b-instruct"
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 4096
+    LLM_MAX_RETRIES: int = 3
+    LLM_RETRY_INITIAL_DELAY_SECONDS: float = 1.0
+    LLM_RETRY_MAX_DELAY_SECONDS: float = 10.0
+    LLM_RETRY_MAX_TOKENS: int = 8192
 
     DB_PATH: str = "./data/arxiv.db"
     DATA_DIR: str = "./data"

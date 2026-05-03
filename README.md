@@ -104,6 +104,10 @@ cp backend/.env.example backend/.env
 | `LLM_MODEL` | `meta/llama-3.3-70b-instruct` | NIM 上的模型名 |
 | `LLM_TEMPERATURE` | `0.2` | |
 | `LLM_MAX_TOKENS` | `4096` | |
+| `LLM_MAX_RETRIES` | `3` | LLM 请求失败、空内容、截断或结果校验失败后的重试次数 |
+| `LLM_RETRY_INITIAL_DELAY_SECONDS` | `1.0` | LLM 重试初始等待时间 |
+| `LLM_RETRY_MAX_DELAY_SECONDS` | `10.0` | LLM 重试最大等待时间 |
+| `LLM_RETRY_MAX_TOKENS` | `8192` | 因输出截断重试时允许提升到的最大输出 token 数 |
 | `DB_PATH` | `./data/arxiv.db` | SQLite 路径（相对 backend/） |
 | `DATA_DIR` | `./data` | PDF / figure 根目录 |
 | `FETCH_CRON_HOUR` / `_MINUTE` | `9` / `0` | 每日拉取时间默认值（可在设置页覆盖，服务器本地时区） |
