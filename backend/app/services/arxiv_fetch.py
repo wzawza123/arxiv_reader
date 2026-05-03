@@ -15,11 +15,42 @@ from .app_settings import get_fetch_lookback_days
 log = logging.getLogger(__name__)
 
 
+def _normalize_category(category: str) -> str:
+    category = category.strip()
+    if "." not in category:
+        return category
+    major, minor = category.split(".", 1)
+    return f"{major.lower()}.{minor.upper()}"
+
+
+def _fetch_category_allowlist() -> tuple[str, ...]:
+    raw = settings.FETCH_CATEGORY_ALLOWLIST.strip()
+    if not raw:
+        return ()
+
+    categories: list[str] = []
+    seen: set[str] = set()
+    for item in raw.replace(";", ",").split(","):
+        category = _normalize_category(item)
+        if not category:
+            continue
+        key = category.lower()
+        if key in seen:
+            continue
+        categories.append(category)
+        seen.add(key)
+    return tuple(categories)
+
+
 def _fetch_category_prefix() -> str:
     return settings.FETCH_CATEGORY_PREFIX.strip()
 
 
 def _category_scope_query() -> str:
+    allowlist = _fetch_category_allowlist()
+    if allowlist:
+        return "(" + " OR ".join(f"cat:{category}" for category in allowlist) + ")"
+
     prefix = _fetch_category_prefix()
     if not prefix:
         return ""
@@ -33,6 +64,11 @@ def _category_scope_query() -> str:
 
 
 def _has_category_in_scope(categories: Iterable[str]) -> bool:
+    allowlist = _fetch_category_allowlist()
+    if allowlist:
+        allowed = {category.lower() for category in allowlist}
+        return any(_normalize_category(c).lower() in allowed for c in categories)
+
     prefix = _fetch_category_prefix()
     if not prefix:
         return True

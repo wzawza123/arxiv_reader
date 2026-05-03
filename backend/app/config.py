@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     WORKER_CONCURRENCY: int = 2
     FETCH_MAX_RESULTS_PER_QUERY: int = 50
     FETCH_LOOKBACK_DAYS: int = 2
+    FETCH_CATEGORY_ALLOWLIST: str = "cs.AI,cs.CL,cs.CV,cs.GR,cs.MA,cs.MM"
     FETCH_CATEGORY_PREFIX: str = "cs."
     SUMMARY_PDF_MAX_CHARS: int = 60000
 

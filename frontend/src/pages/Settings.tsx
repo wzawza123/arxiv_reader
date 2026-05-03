@@ -11,15 +11,11 @@ import {
 
 const COMMON_CATEGORIES = [
   "cs.AI",
-  "cs.CV",
-  "cs.LG",
   "cs.CL",
-  "cs.RO",
-  "cs.IR",
+  "cs.CV",
   "cs.GR",
+  "cs.MA",
   "cs.MM",
-  "cs.SE",
-  "cs.DB",
 ];
 
 function getErrorMessage(error: unknown) {
