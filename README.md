@@ -106,7 +106,7 @@ cp backend/.env.example backend/.env
 | `LLM_MAX_TOKENS` | `4096` | |
 | `DB_PATH` | `./data/arxiv.db` | SQLite 路径（相对 backend/） |
 | `DATA_DIR` | `./data` | PDF / figure 根目录 |
-| `FETCH_CRON_HOUR` / `_MINUTE` | `9` / `0` | 每日拉取时间（服务器本地时区） |
+| `FETCH_CRON_HOUR` / `_MINUTE` | `9` / `0` | 每日拉取时间默认值（可在设置页覆盖，服务器本地时区） |
 | `WORKER_CONCURRENCY` | `2` | 后台 worker 数量 |
 | `SUMMARY_PDF_MAX_CHARS` | `60000` | LLM 总结时从 PDF 正文抽取的最大字符数 |
 | `FETCH_MAX_RESULTS_PER_QUERY` | `50` | 每个订阅最多拉多少条 |
@@ -172,7 +172,7 @@ npm run dev
 | `GET` | `/api/papers/stats/counts` | 各 status 计数（首页 nav 角标） |
 | `GET` `POST` | `/api/subscriptions` | 订阅列表 / 新建 |
 | `PATCH` `DELETE` | `/api/subscriptions/{id}` | 修改 / 删除 |
-| `GET` `PATCH` | `/api/settings/fetch` | 查看 / 修改拉取窗口天数，以及 summary / figure 的触发时机 |
+| `GET` `PATCH` | `/api/settings/fetch` | 查看 / 修改自动拉取开关、每日拉取时间、拉取窗口天数，以及 summary / figure 的触发时机 |
 | `GET` | `/api/tags` | tag 库 + 每个 tag 的论文数 |
 | `PATCH` `DELETE` | `/api/tags/{id}` | 重命名 / 删除（级联清 PaperTag） |
 | `GET` | `/api/jobs?status=&limit=` | 后台任务列表（前端任务页 5s 轮询） |

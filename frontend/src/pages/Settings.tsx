@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   PaperApi,
@@ -27,6 +27,21 @@ function getErrorMessage(error: unknown) {
   return "操作失败";
 }
 
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function formatOffsetDateTime(date: Date, offsetMinutes: number, timezone: string) {
+  const shifted = new Date(date.getTime() + offsetMinutes * 60_000);
+  const year = shifted.getUTCFullYear();
+  const month = pad2(shifted.getUTCMonth() + 1);
+  const day = pad2(shifted.getUTCDate());
+  const hour = pad2(shifted.getUTCHours());
+  const minute = pad2(shifted.getUTCMinutes());
+  const second = pad2(shifted.getUTCSeconds());
+  return `${year}-${month}-${day} ${hour}:${minute}:${second} ${timezone}`;
+}
+
 export default function Settings() {
   const qc = useQueryClient();
   const subs = useQuery({ queryKey: ["subs"], queryFn: SubsApi.list });
@@ -34,6 +49,7 @@ export default function Settings() {
   const fetchSettings = useQuery({
     queryKey: ["fetch-settings"],
     queryFn: SettingsApi.getFetch,
+    refetchInterval: 30_000,
   });
   const paperCounts = useQuery({
     queryKey: ["counts"],
@@ -43,6 +59,8 @@ export default function Settings() {
   const [kind, setKind] = useState<"category" | "keyword">("category");
   const [value, setValue] = useState("");
   const [fetchLookbackDays, setFetchLookbackDays] = useState<string | null>(null);
+  const [fetchTime, setFetchTime] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const [tagName, setTagName] = useState("");
   const [tagDescription, setTagDescription] = useState("");
   const [editingTag, setEditingTag] = useState<{
@@ -51,6 +69,11 @@ export default function Settings() {
     description: string;
   } | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const invalidateTags = () => {
     qc.invalidateQueries({ queryKey: ["tags"] });
@@ -84,6 +107,28 @@ export default function Settings() {
       }),
     onSuccess: (data) => {
       setFetchLookbackDays(String(data.fetch_lookback_days));
+      qc.setQueryData(["fetch-settings"], data);
+      qc.invalidateQueries({ queryKey: ["fetch-settings"] });
+    },
+  });
+
+  const updateAutoFetch = useMutation({
+    mutationFn: (auto_fetch_enabled: boolean) =>
+      SettingsApi.updateFetch({ auto_fetch_enabled }),
+    onSuccess: (data) => {
+      setFetchTime(data.fetch_time);
+      qc.setQueryData(["fetch-settings"], data);
+      qc.invalidateQueries({ queryKey: ["fetch-settings"] });
+    },
+  });
+
+  const updateFetchTime = useMutation({
+    mutationFn: () =>
+      SettingsApi.updateFetch({
+        fetch_time: fetchTime ?? fetchSettings.data?.fetch_time,
+      }),
+    onSuccess: (data) => {
+      setFetchTime(data.fetch_time);
       qc.setQueryData(["fetch-settings"], data);
       qc.invalidateQueries({ queryKey: ["fetch-settings"] });
     },
@@ -178,6 +223,31 @@ export default function Settings() {
     parsedFetchLookback >= 1 &&
     parsedFetchLookback <= 365 &&
     parsedFetchLookback !== currentFetchLookback;
+  const currentAutoFetchEnabled =
+    fetchSettings.data?.auto_fetch_enabled ??
+    fetchSettings.data?.default_auto_fetch_enabled;
+  const currentFetchTime =
+    fetchSettings.data?.fetch_time ?? fetchSettings.data?.default_fetch_time;
+  const fetchTimeValue = fetchTime ?? currentFetchTime ?? "";
+  const canSaveFetchTime =
+    currentFetchTime !== undefined &&
+    /^([01]\d|2[0-3]):[0-5]\d$/.test(fetchTimeValue) &&
+    fetchTimeValue !== currentFetchTime;
+  const serverTimeBase = fetchSettings.data?.server_time
+    ? new Date(fetchSettings.data.server_time)
+    : null;
+  const serverElapsedMs =
+    serverTimeBase && fetchSettings.dataUpdatedAt > 0
+      ? Math.max(0, now.getTime() - fetchSettings.dataUpdatedAt)
+      : 0;
+  const serverCurrentTime =
+    serverTimeBase && fetchSettings.data
+      ? formatOffsetDateTime(
+          new Date(serverTimeBase.getTime() + serverElapsedMs),
+          fetchSettings.data.server_utc_offset_minutes,
+          fetchSettings.data.server_timezone,
+        )
+      : "加载中...";
   const currentHeavyProcessingTrigger =
     fetchSettings.data?.heavy_processing_trigger ??
     fetchSettings.data?.default_heavy_processing_trigger;
@@ -201,44 +271,123 @@ export default function Settings() {
     <section className="space-y-6">
       <div className="bg-white border rounded p-4">
         <h2 className="font-semibold mb-3">拉取设置</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4 border-b pb-4">
+          <div>
+            <div className="text-xs text-slate-500 mb-1">服务器当前时间</div>
+            <div className="font-mono">{serverCurrentTime}</div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500 mb-1">浏览器当前时间</div>
+            <div className="font-mono">{now.toLocaleString()}</div>
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-end gap-3 text-sm">
+          <label className="flex items-center gap-3 pb-1">
+            <input
+              type="checkbox"
+              checked={Boolean(currentAutoFetchEnabled)}
+              disabled={currentAutoFetchEnabled === undefined || updateAutoFetch.isPending}
+              onChange={(e) => updateAutoFetch.mutate(e.currentTarget.checked)}
+              className="sr-only peer"
+            />
+            <span className="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-slate-300 transition peer-checked:bg-blue-600 peer-disabled:opacity-50 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5" />
+            <span className="font-medium">
+              {currentAutoFetchEnabled === undefined
+                ? "自动 Fetch 加载中..."
+                : currentAutoFetchEnabled
+                  ? "自动 Fetch 已开启"
+                  : "自动 Fetch 已关闭"}
+            </span>
+          </label>
           <label className="block">
             <span className="block text-xs text-slate-500 mb-1">
-              只保留近 N 天发表的论文
+              每日 Fetch 时间（服务器时间）
             </span>
             <input
-              type="number"
-              min={1}
-              max={365}
-              value={fetchLookbackValue}
+              type="time"
+              value={fetchTimeValue}
+              disabled={currentFetchTime === undefined || updateFetchTime.isPending}
               onChange={(e) => {
-                updateFetchSettings.reset();
-                setFetchLookbackDays(e.target.value);
+                updateFetchTime.reset();
+                setFetchTime(e.target.value);
               }}
               className="border rounded px-2 py-1 w-32"
             />
           </label>
           <button
-            disabled={!canSaveFetchLookback || updateFetchSettings.isPending}
-            onClick={() => updateFetchSettings.mutate()}
+            disabled={!canSaveFetchTime || updateFetchTime.isPending}
+            onClick={() => updateFetchTime.mutate()}
             className="bg-slate-800 text-white px-3 py-1 rounded disabled:opacity-50"
           >
-            保存
+            保存时间
           </button>
           {fetchSettings.data && (
             <span className="text-xs text-slate-500">
-              默认值：{fetchSettings.data.default_fetch_lookback_days} 天
+              默认时间：{fetchSettings.data.default_fetch_time}
             </span>
           )}
         </div>
-        {updateFetchSettings.isSuccess && (
-          <p className="text-xs text-emerald-700 mt-2">已保存，下次 Fetch 生效。</p>
+        <p className="text-xs text-slate-500 mt-2">
+          开启后，后端进程运行期间会按设置时间每天拉取一次；关闭后仍可在任务页手动 Fetch Now。
+        </p>
+        {updateAutoFetch.isSuccess && (
+          <p className="text-xs text-emerald-700 mt-2">自动 Fetch 设置已保存。</p>
         )}
-        {updateFetchSettings.isError && (
+        {updateAutoFetch.isError && (
           <p className="text-xs text-rose-600 mt-2">
-            {getErrorMessage(updateFetchSettings.error)}
+            {getErrorMessage(updateAutoFetch.error)}
           </p>
         )}
+        {updateFetchTime.isSuccess && (
+          <p className="text-xs text-emerald-700 mt-2">Fetch 时间已保存。</p>
+        )}
+        {updateFetchTime.isError && (
+          <p className="text-xs text-rose-600 mt-2">
+            {getErrorMessage(updateFetchTime.error)}
+          </p>
+        )}
+
+        <div className="mt-4 border-t pt-4">
+          <div className="flex flex-wrap items-end gap-3 text-sm">
+            <label className="block">
+              <span className="block text-xs text-slate-500 mb-1">
+                只保留近 N 天发表的论文
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={fetchLookbackValue}
+                onChange={(e) => {
+                  updateFetchSettings.reset();
+                  setFetchLookbackDays(e.target.value);
+                }}
+                className="border rounded px-2 py-1 w-32"
+              />
+            </label>
+            <button
+              disabled={!canSaveFetchLookback || updateFetchSettings.isPending}
+              onClick={() => updateFetchSettings.mutate()}
+              className="bg-slate-800 text-white px-3 py-1 rounded disabled:opacity-50"
+            >
+              保存
+            </button>
+            {fetchSettings.data && (
+              <span className="text-xs text-slate-500">
+                默认值：{fetchSettings.data.default_fetch_lookback_days} 天
+              </span>
+            )}
+          </div>
+          {updateFetchSettings.isSuccess && (
+            <p className="text-xs text-emerald-700 mt-2">已保存，下次 Fetch 生效。</p>
+          )}
+          {updateFetchSettings.isError && (
+            <p className="text-xs text-rose-600 mt-2">
+              {getErrorMessage(updateFetchSettings.error)}
+            </p>
+          )}
+        </div>
         <div className="mt-4 border-t pt-4">
           <h3 className="text-sm font-medium mb-2">重处理时机</h3>
           <label className="flex flex-wrap items-center gap-3 text-sm">

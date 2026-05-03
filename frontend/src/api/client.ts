@@ -66,6 +66,13 @@ export type Job = {
 export type FetchSettings = {
   fetch_lookback_days: number;
   default_fetch_lookback_days: number;
+  auto_fetch_enabled: boolean;
+  default_auto_fetch_enabled: boolean;
+  fetch_time: string;
+  default_fetch_time: string;
+  server_time: string;
+  server_timezone: string;
+  server_utc_offset_minutes: number;
   heavy_processing_trigger: HeavyProcessingTrigger;
   default_heavy_processing_trigger: HeavyProcessingTrigger;
 };
@@ -119,6 +126,8 @@ export const SettingsApi = {
   getFetch: () => api.get<FetchSettings>("/settings/fetch").then((r) => r.data),
   updateFetch: (body: {
     fetch_lookback_days?: number;
+    auto_fetch_enabled?: boolean;
+    fetch_time?: string;
     heavy_processing_trigger?: HeavyProcessingTrigger;
   }) =>
     api.patch<FetchSettings>("/settings/fetch", body).then((r) => r.data),

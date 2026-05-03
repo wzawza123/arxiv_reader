@@ -100,11 +100,23 @@ HeavyProcessingTrigger = Literal["on_fetch", "on_to_read"]
 
 class FetchSettingsIn(BaseModel):
     fetch_lookback_days: Optional[int] = Field(default=None, ge=1, le=365)
+    auto_fetch_enabled: Optional[bool] = None
+    fetch_time: Optional[str] = Field(
+        default=None,
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
+    )
     heavy_processing_trigger: Optional[HeavyProcessingTrigger] = None
 
 
 class FetchSettingsOut(BaseModel):
     fetch_lookback_days: int
     default_fetch_lookback_days: int
+    auto_fetch_enabled: bool
+    default_auto_fetch_enabled: bool
+    fetch_time: str
+    default_fetch_time: str
+    server_time: datetime
+    server_timezone: str
+    server_utc_offset_minutes: int
     heavy_processing_trigger: HeavyProcessingTrigger
     default_heavy_processing_trigger: HeavyProcessingTrigger
