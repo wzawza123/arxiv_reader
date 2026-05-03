@@ -18,6 +18,33 @@ const REPROCESS_STAGES: { label: string; stage: "translate" | "tag" | "summary" 
   { label: "Figures", stage: "figures" },
 ];
 
+const STATUS_META = {
+  new: {
+    label: "Inbox（未分类）",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    buttonClassName: "border-blue-200 text-blue-700 hover:bg-blue-50",
+  },
+  to_read: {
+    label: "待阅读",
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    buttonClassName: "border-emerald-200 text-emerald-700 hover:bg-emerald-50",
+  },
+  read: {
+    label: "已读",
+    badgeClassName: "border-slate-200 bg-slate-50 text-slate-700",
+    buttonClassName: "border-slate-200 text-slate-700 hover:bg-slate-50",
+  },
+  not_interested: {
+    label: "不感兴趣",
+    badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+    buttonClassName: "border-rose-200 text-rose-700 hover:bg-rose-50",
+  },
+};
+
+type PaperStatus = keyof typeof STATUS_META;
+
+const STATUS_OPTIONS: PaperStatus[] = ["new", "to_read", "read", "not_interested"];
+
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 6;
 const ZOOM_STEP = 1.2;
@@ -57,6 +84,16 @@ export default function PaperDetail() {
       PaperApi.reprocess(pid, stage),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["paper", pid] });
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+    },
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: (status: PaperStatus) => PaperApi.patch(pid, { status }),
+    onSuccess: (updatedPaper) => {
+      qc.setQueryData(["paper", pid], updatedPaper);
+      qc.invalidateQueries({ queryKey: ["papers"] });
+      qc.invalidateQueries({ queryKey: ["counts"] });
       qc.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
@@ -172,9 +209,18 @@ export default function PaperDetail() {
 
   if (isLoading || !paper) return <p className="text-sm text-slate-500">加载中...</p>;
 
+  const statusMeta = STATUS_META[paper.status];
+
   return (
     <section>
-      <h2 className="text-xl font-semibold">{paper.title}</h2>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <h2 className="text-xl font-semibold">{paper.title}</h2>
+        <span
+          className={`inline-flex shrink-0 self-start rounded-full border px-2.5 py-1 text-xs font-medium ${statusMeta.badgeClassName}`}
+        >
+          当前：{statusMeta.label}
+        </span>
+      </div>
       <div className="text-xs text-slate-500 mt-1">
         {paper.authors.join(", ")}
         <span className="mx-2">·</span>
@@ -231,11 +277,29 @@ export default function PaperDetail() {
         </div>
         <aside className="space-y-4">
           <div className="bg-white border rounded p-4">
-            <h3 className="font-semibold text-sm text-slate-600 mb-2">操作</h3>
+            <h3 className="font-semibold text-sm text-slate-600 mb-2">修改类别</h3>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_OPTIONS.filter((status) => status !== paper.status).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  disabled={updateStatus.isPending}
+                  onClick={() => updateStatus.mutate(status)}
+                  className={`rounded border px-2 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 ${STATUS_META[status].buttonClassName}`}
+                >
+                  改为：{STATUS_META[status].label}
+                </button>
+              ))}
+            </div>
+            {updateStatus.isError && (
+              <p className="mt-2 text-xs text-rose-600">类别修改失败，请稍后重试。</p>
+            )}
+            <h3 className="mt-4 font-semibold text-sm text-slate-600 mb-2">重跑处理</h3>
             <div className="flex flex-wrap gap-2">
               {REPROCESS_STAGES.map((s) => (
                 <button
                   key={s.stage}
+                  type="button"
                   disabled={reprocess.isPending}
                   onClick={() => reprocess.mutate(s.stage)}
                   className="text-xs px-2 py-1 border rounded hover:bg-slate-50"
