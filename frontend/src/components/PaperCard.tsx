@@ -15,7 +15,30 @@ const STATUS_BUTTONS: { label: string; status: string; cls: string }[] = [
   { label: "不感兴趣", status: "not_interested", cls: "bg-rose-600 hover:bg-rose-700" },
 ];
 
-export default function PaperCard({ paper }: { paper: PaperListItem }) {
+type PaperListContext = {
+  status: PaperListItem["status"];
+  tag?: string;
+};
+
+function detailLinkTo(paperId: number, context?: PaperListContext) {
+  const params = new URLSearchParams();
+  if (context?.status) params.set("status", context.status);
+  if (context?.tag) params.set("tag", context.tag);
+
+  const search = params.toString();
+  return {
+    pathname: `/papers/${paperId}`,
+    search: search ? `?${search}` : "",
+  };
+}
+
+export default function PaperCard({
+  paper,
+  listContext,
+}: {
+  paper: PaperListItem;
+  listContext?: PaperListContext;
+}) {
   const [showZh, setShowZh] = useState(true);
   const qc = useQueryClient();
   const mutate = useMutation({
@@ -34,7 +57,10 @@ export default function PaperCard({ paper }: { paper: PaperListItem }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <h3 className="font-semibold text-base">
-            <Link to={`/papers/${paper.id}`} className="hover:text-blue-700">
+            <Link
+              to={detailLinkTo(paper.id, listContext)}
+              className="hover:text-blue-700"
+            >
               {paper.title}
             </Link>
           </h3>

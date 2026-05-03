@@ -52,6 +52,11 @@ class PaperDetail(PaperListItem):
     figures: List[FigureOut] = []
 
 
+class PaperNeighbors(BaseModel):
+    previous: Optional[PaperListItem] = None
+    next: Optional[PaperListItem] = None
+
+
 class PaperPatch(BaseModel):
     status: Optional[Literal["new", "to_read", "not_interested", "read"]] = None
     tag_ids: Optional[List[int]] = None

@@ -38,6 +38,11 @@ export type PaperDetail = PaperListItem & {
   figures: Figure[];
 };
 
+export type PaperNeighbors = {
+  previous: PaperListItem | null;
+  next: PaperListItem | null;
+};
+
 export type Subscription = {
   id: number;
   kind: "category" | "keyword";
@@ -71,6 +76,10 @@ export const PaperApi = {
   list: (params: { status?: string; tag?: string; q?: string; page?: number }) =>
     api.get<PaperListItem[]>("/papers", { params }).then((r) => r.data),
   get: (id: number) => api.get<PaperDetail>(`/papers/${id}`).then((r) => r.data),
+  neighbors: (id: number, params?: { status?: string; tag?: string }) =>
+    api
+      .get<PaperNeighbors>(`/papers/${id}/neighbors`, { params })
+      .then((r) => r.data),
   patch: (id: number, body: { status?: string; tag_ids?: number[] }) =>
     api.patch<PaperDetail>(`/papers/${id}`, body).then((r) => r.data),
   clearAll: () => api.delete<{ deleted: number }>("/papers").then((r) => r.data),

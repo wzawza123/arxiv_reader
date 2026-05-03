@@ -48,6 +48,13 @@ export default function PaperListWithTagFilter({
   };
 
   const papers = papersQuery.data ?? [];
+  const paperListContext = useMemo(
+    () => ({
+      status,
+      tag: selectedTag || undefined,
+    }),
+    [selectedTag, status],
+  );
   const visibleTags = useMemo(
     () =>
       (tagsQuery.data ?? [])
@@ -163,7 +170,11 @@ export default function PaperListWithTagFilter({
           </p>
         )}
         {papers.map((paper) => (
-          <PaperCard key={paper.id} paper={paper} />
+          <PaperCard
+            key={paper.id}
+            paper={paper}
+            listContext={paperListContext}
+          />
         ))}
       </section>
     </div>

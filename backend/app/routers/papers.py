@@ -4,12 +4,12 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, or_, delete
+from sqlalchemy import select, func, or_, and_, delete
 from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
 from ..models import Figure, Job, Paper, PaperStatus, PaperTag, Tag, JobKind
-from ..schemas import PaperListItem, PaperDetail, PaperPatch
+from ..schemas import PaperListItem, PaperDetail, PaperNeighbors, PaperPatch
 from ..services.app_settings import (
     HEAVY_PROCESSING_ON_FETCH,
     HEAVY_PROCESSING_ON_TO_READ,
@@ -26,6 +26,21 @@ router = APIRouter(prefix="/papers", tags=["papers"])
 log = logging.getLogger(__name__)
 
 
+def _normalize_tag_name(name: str) -> str:
+    return " ".join(name.strip().lower().split())
+
+
+def _apply_paper_filters(stmt, status: Optional[str], tag: Optional[str]):
+    if status:
+        try:
+            stmt = stmt.where(Paper.status == PaperStatus(status))
+        except ValueError:
+            raise HTTPException(400, f"invalid status: {status}")
+    if tag:
+        stmt = stmt.join(Paper.tags).where(Tag.name == _normalize_tag_name(tag))
+    return stmt
+
+
 @router.get("", response_model=list[PaperListItem])
 def list_papers(
     status: Optional[str] = Query(None),
@@ -36,13 +51,7 @@ def list_papers(
     db: Session = Depends(get_db),
 ):
     stmt = select(Paper).options(selectinload(Paper.tags)).order_by(Paper.published_at.desc())
-    if status:
-        try:
-            stmt = stmt.where(Paper.status == PaperStatus(status))
-        except ValueError:
-            raise HTTPException(400, f"invalid status: {status}")
-    if tag:
-        stmt = stmt.join(Paper.tags).where(Tag.name == tag.lower().strip())
+    stmt = _apply_paper_filters(stmt, status, tag)
     if q:
         like = f"%{q}%"
         stmt = stmt.where(or_(Paper.title.ilike(like), Paper.abstract.ilike(like)))
@@ -69,6 +78,47 @@ def get_paper(paper_id: int, db: Session = Depends(get_db)):
     if paper is None:
         raise HTTPException(404)
     return paper
+
+
+@router.get("/{paper_id}/neighbors", response_model=PaperNeighbors)
+def get_paper_neighbors(
+    paper_id: int,
+    status: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    paper = db.get(Paper, paper_id)
+    if paper is None:
+        raise HTTPException(404)
+
+    base_stmt = select(Paper).options(selectinload(Paper.tags))
+    base_stmt = _apply_paper_filters(base_stmt, status, tag)
+
+    previous_stmt = (
+        base_stmt.where(
+            or_(
+                Paper.published_at > paper.published_at,
+                and_(Paper.published_at == paper.published_at, Paper.id > paper.id),
+            )
+        )
+        .order_by(Paper.published_at.asc(), Paper.id.asc())
+        .limit(1)
+    )
+    next_stmt = (
+        base_stmt.where(
+            or_(
+                Paper.published_at < paper.published_at,
+                and_(Paper.published_at == paper.published_at, Paper.id < paper.id),
+            )
+        )
+        .order_by(Paper.published_at.desc(), Paper.id.desc())
+        .limit(1)
+    )
+
+    return {
+        "previous": db.execute(previous_stmt).unique().scalar_one_or_none(),
+        "next": db.execute(next_stmt).unique().scalar_one_or_none(),
+    }
 
 
 @router.patch("/{paper_id}", response_model=PaperDetail)

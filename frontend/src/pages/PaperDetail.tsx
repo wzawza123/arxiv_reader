@@ -1,11 +1,12 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PaperApi, type Figure } from "../api/client";
 import MarkdownView from "../components/MarkdownView";
@@ -45,6 +46,19 @@ type PaperStatus = keyof typeof STATUS_META;
 
 const STATUS_OPTIONS: PaperStatus[] = ["new", "to_read", "read", "not_interested"];
 
+function parsePaperStatus(value: string | null): PaperStatus | null {
+  if (!value) return null;
+  return STATUS_OPTIONS.includes(value as PaperStatus) ? (value as PaperStatus) : null;
+}
+
+function buildPaperSearch(context: { status?: PaperStatus; tag?: string }) {
+  const params = new URLSearchParams();
+  if (context.status) params.set("status", context.status);
+  if (context.tag) params.set("tag", context.tag);
+  const search = params.toString();
+  return search ? `?${search}` : "";
+}
+
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 6;
 const ZOOM_STEP = 1.2;
@@ -56,6 +70,8 @@ function clampZoom(value: number) {
 export default function PaperDetail() {
   const { id } = useParams();
   const pid = Number(id);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [previewFigure, setPreviewFigure] = useState<Figure | null>(null);
   const [previewZoom, setPreviewZoom] = useState(1);
@@ -71,6 +87,24 @@ export default function PaperDetail() {
     queryKey: ["paper", pid],
     queryFn: () => PaperApi.get(pid),
     refetchInterval: 8_000,
+  });
+  const statusParam = parsePaperStatus(searchParams.get("status"));
+  const tagParam = searchParams.get("tag")?.trim() ?? "";
+  const navigationContext = useMemo(
+    () => ({
+      status: statusParam ?? paper?.status,
+      tag: tagParam || undefined,
+    }),
+    [paper?.status, statusParam, tagParam],
+  );
+  const neighborsQuery = useQuery({
+    queryKey: ["paper-neighbors", pid, navigationContext],
+    queryFn: () =>
+      PaperApi.neighbors(pid, {
+        status: navigationContext.status,
+        tag: navigationContext.tag,
+      }),
+    enabled: Number.isFinite(pid) && !!navigationContext.status,
   });
   const figures = paper?.figures ?? [];
   const previewFigureIndex = previewFigure
@@ -93,10 +127,18 @@ export default function PaperDetail() {
     onSuccess: (updatedPaper) => {
       qc.setQueryData(["paper", pid], updatedPaper);
       qc.invalidateQueries({ queryKey: ["papers"] });
+      qc.invalidateQueries({ queryKey: ["paper-neighbors"] });
       qc.invalidateQueries({ queryKey: ["counts"] });
       qc.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
+
+  const navigateToPaper = (paperId: number) => {
+    navigate({
+      pathname: `/papers/${paperId}`,
+      search: buildPaperSearch(navigationContext),
+    });
+  };
 
   const closeFigurePreview = () => {
     setPreviewFigure(null);
@@ -210,6 +252,14 @@ export default function PaperDetail() {
   if (isLoading || !paper) return <p className="text-sm text-slate-500">加载中...</p>;
 
   const statusMeta = STATUS_META[paper.status];
+  const previousPaper = neighborsQuery.data?.previous ?? null;
+  const nextPaper = neighborsQuery.data?.next ?? null;
+  const isNeighborLoading = neighborsQuery.isLoading && !neighborsQuery.data;
+  const navigationScope = navigationContext.status
+    ? `${STATUS_META[navigationContext.status].label} / ${
+        navigationContext.tag ? `标签：${navigationContext.tag}` : "全部标签"
+      }`
+    : "当前类别";
 
   return (
     <section>
@@ -248,6 +298,33 @@ export default function PaperDetail() {
         {paper.tags.map((t) => (
           <TagBadge key={t.id} tag={t} />
         ))}
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3 rounded border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 text-xs text-slate-500">
+          浏览范围：
+          <span className="font-medium text-slate-700">{navigationScope}</span>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            disabled={isNeighborLoading || !previousPaper}
+            title={previousPaper?.title}
+            onClick={() => previousPaper && navigateToPaper(previousPaper.id)}
+            className="rounded border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+          >
+            上一篇
+          </button>
+          <button
+            type="button"
+            disabled={isNeighborLoading || !nextPaper}
+            title={nextPaper?.title}
+            onClick={() => nextPaper && navigateToPaper(nextPaper.id)}
+            className="rounded border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+          >
+            下一篇
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
