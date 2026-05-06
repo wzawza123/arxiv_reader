@@ -64,9 +64,11 @@ class JobQueue:
         self.concurrency = concurrency
         self._queue: asyncio.Queue[int] = asyncio.Queue()
         self._workers: list[asyncio.Task] = []
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._stopping = False
 
     async def start(self) -> None:
+        self._loop = asyncio.get_running_loop()
         # Recover pending/running jobs
         with SessionLocal() as db:
             db.execute(
@@ -105,8 +107,21 @@ class JobQueue:
             db.add(job)
             db.commit()
             jid = job.id
-        self._queue.put_nowait(jid)
+        self._enqueue_id(jid)
         return jid
+
+    def _enqueue_id(self, jid: int) -> None:
+        if self._loop is None or self._loop.is_closed():
+            self._queue.put_nowait(jid)
+            return
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+        if running_loop is self._loop:
+            self._queue.put_nowait(jid)
+        else:
+            self._loop.call_soon_threadsafe(self._queue.put_nowait, jid)
 
     async def _worker_loop(self, idx: int) -> None:
         while not self._stopping:
@@ -127,6 +142,26 @@ class JobQueue:
             db.commit()
             kind: JobKind = job.kind  # SAEnum -> python value
             paper_id = job.paper_id
+
+        if kind == JobKind.FETCH:
+            err: Optional[str] = None
+            try:
+                from . import scheduler as scheduler_mod
+
+                new_count, queued = await asyncio.to_thread(scheduler_mod.run_fetch_now)
+                log.info("fetch job %s completed: %d new paper(s), %d queued job(s)", jid, new_count, queued)
+            except Exception as e:
+                log.exception("job %s (%s) failed: %s", jid, kind, e)
+                err = f"{type(e).__name__}: {e}"
+
+            with SessionLocal() as db:
+                job = db.get(Job, jid)
+                if job:
+                    job.status = JobStatus.FAILED if err else JobStatus.DONE
+                    job.error = err
+                    job.finished_at = datetime.utcnow()
+                    db.commit()
+            return
 
         handler = HANDLERS.get(kind)
         if handler is None:

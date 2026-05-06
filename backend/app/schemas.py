@@ -91,6 +91,7 @@ class JobOut(BaseModel):
 
 
 class FetchTriggerOut(BaseModel):
+    job_id: Optional[int] = None
     queued: int
     new_papers: int
 

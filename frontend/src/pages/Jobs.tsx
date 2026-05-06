@@ -33,12 +33,14 @@ export default function Jobs() {
           onClick={() => fetchNow.mutate()}
           className="bg-blue-600 text-white px-3 py-1.5 rounded disabled:opacity-50"
         >
-          {fetchNow.isPending ? "拉取中..." : "Fetch Now"}
+          {fetchNow.isPending ? "提交中..." : "Fetch Now"}
         </button>
       </div>
       {fetchNow.data && (
         <p className="text-sm text-emerald-700 mb-2">
-          已拉取 {fetchNow.data.new_papers} 篇新论文，入队 {fetchNow.data.queued} 个后台任务。
+          {fetchNow.data.job_id
+            ? `已提交拉取任务 #${fetchNow.data.job_id}，完成后会自动入队后续处理任务。`
+            : `已拉取 ${fetchNow.data.new_papers} 篇新论文，入队 ${fetchNow.data.queued} 个后台任务。`}
         </p>
       )}
       <table className="w-full text-sm bg-white border rounded">

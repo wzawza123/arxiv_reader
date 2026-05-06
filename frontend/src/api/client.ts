@@ -1,6 +1,23 @@
 import axios from "axios";
 
-export const api = axios.create({ baseURL: "/api" });
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function trimLeadingSlash(value: string): string {
+  return value.replace(/^\/+/, "");
+}
+
+export const API_BASE_URL = trimTrailingSlash(import.meta.env.VITE_API_BASE_URL || "/api");
+
+export const FIGURES_BASE_URL = trimTrailingSlash(
+  import.meta.env.VITE_FIGURES_BASE_URL ||
+    (API_BASE_URL.endsWith("/api") ? `${API_BASE_URL.slice(0, -4)}/figures` : "/figures"),
+);
+
+export const figureUrl = (path: string) => `${FIGURES_BASE_URL}/${trimLeadingSlash(path)}`;
+
+export const api = axios.create({ baseURL: API_BASE_URL });
 
 export type Tag = {
   id: number;
@@ -63,6 +80,12 @@ export type Job = {
   created_at: string;
 };
 
+export type FetchTriggerOut = {
+  job_id?: number | null;
+  queued: number;
+  new_papers: number;
+};
+
 export type FetchSettings = {
   fetch_lookback_days: number;
   default_fetch_lookback_days: number;
@@ -88,8 +111,8 @@ export const PaperApi = {
       .get<PaperNeighbors>(`/papers/${id}/neighbors`, { params })
       .then((r) => r.data),
   patch: (id: number, body: { status?: string; tag_ids?: number[] }) =>
-    api.patch<PaperDetail>(`/papers/${id}`, body).then((r) => r.data),
-  clearAll: () => api.delete<{ deleted: number }>("/papers").then((r) => r.data),
+    api.post<PaperDetail>(`/papers/${id}`, body).then((r) => r.data),
+  clearAll: () => api.post<{ deleted: number }>("/papers/clear").then((r) => r.data),
   reprocess: (id: number, stage: "translate" | "tag" | "summary" | "figures") =>
     api.post(`/papers/${id}/reprocess`, null, { params: { stage } }).then((r) => r.data),
   counts: () => api.get<Record<string, number>>("/papers/stats/counts").then((r) => r.data),
@@ -100,8 +123,8 @@ export const SubsApi = {
   create: (body: { kind: string; value: string; enabled?: boolean }) =>
     api.post<Subscription>("/subscriptions", body).then((r) => r.data),
   update: (id: number, body: { kind: string; value: string; enabled: boolean }) =>
-    api.patch<Subscription>(`/subscriptions/${id}`, body).then((r) => r.data),
-  remove: (id: number) => api.delete(`/subscriptions/${id}`).then((r) => r.data),
+    api.post<Subscription>(`/subscriptions/${id}/update`, body).then((r) => r.data),
+  remove: (id: number) => api.post(`/subscriptions/${id}/delete`).then((r) => r.data),
 };
 
 export const TagApi = {
@@ -110,15 +133,15 @@ export const TagApi = {
   create: (body: { name: string; description?: string }) =>
     api.post<Tag>("/tags", body).then((r) => r.data),
   update: (id: number, body: { name?: string; description?: string }) =>
-    api.patch<Tag>(`/tags/${id}`, body).then((r) => r.data),
-  remove: (id: number) => api.delete(`/tags/${id}`).then((r) => r.data),
+    api.post<Tag>(`/tags/${id}/update`, body).then((r) => r.data),
+  remove: (id: number) => api.post(`/tags/${id}/delete`).then((r) => r.data),
 };
 
 export const JobApi = {
   list: () => api.get<Job[]>("/jobs").then((r) => r.data),
   fetchNow: () =>
     api
-      .post<{ queued: number; new_papers: number }>("/jobs/fetch")
+      .post<FetchTriggerOut>("/jobs/fetch")
       .then((r) => r.data),
 };
 
@@ -130,5 +153,5 @@ export const SettingsApi = {
     fetch_time?: string;
     heavy_processing_trigger?: HeavyProcessingTrigger;
   }) =>
-    api.patch<FetchSettings>("/settings/fetch", body).then((r) => r.data),
+    api.post<FetchSettings>("/settings/fetch", body).then((r) => r.data),
 };

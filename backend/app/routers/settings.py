@@ -55,6 +55,7 @@ def get_fetch_settings(db: Session = Depends(get_db)):
 
 
 @router.patch("/fetch", response_model=FetchSettingsOut)
+@router.post("/fetch", response_model=FetchSettingsOut)
 def update_fetch_settings(payload: FetchSettingsIn, db: Session = Depends(get_db)):
     should_reload_scheduler = False
     if payload.fetch_lookback_days is not None:

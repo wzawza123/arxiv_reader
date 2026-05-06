@@ -62,6 +62,7 @@ def list_papers(
 
 
 @router.delete("")
+@router.post("/clear")
 def delete_all_papers(db: Session = Depends(get_db)):
     paper_count = db.scalar(select(func.count(Paper.id))) or 0
     db.execute(delete(Job).where(Job.paper_id.is_not(None)))
@@ -122,6 +123,7 @@ def get_paper_neighbors(
 
 
 @router.patch("/{paper_id}", response_model=PaperDetail)
+@router.post("/{paper_id}", response_model=PaperDetail)
 def update_paper(paper_id: int, patch: PaperPatch, db: Session = Depends(get_db)):
     paper = db.get(Paper, paper_id)
     if paper is None:

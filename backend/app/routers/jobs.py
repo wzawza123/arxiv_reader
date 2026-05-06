@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Job, JobStatus
+from ..models import Job, JobKind, JobStatus
 from ..schemas import JobOut, FetchTriggerOut
-from ..workers import scheduler as scheduler_mod
+from ..workers.queue import get_queue
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -29,13 +29,7 @@ def list_jobs(
     return db.execute(stmt).scalars().all()
 
 
-@router.post("/fetch", response_model=FetchTriggerOut)
-async def trigger_fetch(background: BackgroundTasks):
-    # Run fetch in a background task so the request returns quickly.
-    new_count, queued = await _run_fetch_async()
-    return FetchTriggerOut(queued=queued, new_papers=new_count)
-
-
-async def _run_fetch_async() -> tuple[int, int]:
-    import asyncio
-    return await asyncio.to_thread(scheduler_mod.run_fetch_now)
+@router.post("/fetch", response_model=FetchTriggerOut, status_code=status.HTTP_202_ACCEPTED)
+async def trigger_fetch():
+    job_id = get_queue().enqueue(JobKind.FETCH, None)
+    return FetchTriggerOut(job_id=job_id, queued=1, new_papers=0)

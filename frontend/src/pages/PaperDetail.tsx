@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PaperApi, type Figure } from "../api/client";
+import { PaperApi, figureUrl, type Figure } from "../api/client";
 import MarkdownView from "../components/MarkdownView";
 import TagBadge from "../components/TagBadge";
 
@@ -406,7 +406,7 @@ export default function PaperDetail() {
                   className="block text-left"
                 >
                   <img
-                    src={`/figures/${f.path}`}
+                    src={figureUrl(f.path)}
                     alt={f.caption ?? `figure ${f.idx}`}
                     className="w-full h-auto border rounded transition hover:border-blue-400"
                     loading="lazy"
@@ -515,7 +515,7 @@ export default function PaperDetail() {
             onPointerCancel={handlePreviewPointerUp}
           >
             <img
-              src={`/figures/${previewFigure.path}`}
+              src={figureUrl(previewFigure.path)}
               alt={previewFigure.caption ?? `figure ${previewFigure.idx}`}
               className="max-h-[82vh] max-w-[92vw] rounded bg-white shadow-2xl"
               draggable={false}

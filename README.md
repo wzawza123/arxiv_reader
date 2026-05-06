@@ -117,6 +117,20 @@ cp backend/.env.example backend/.env
 | `FETCH_LOOKBACK_DAYS` | `2` | 仅保留近 N 天发表的论文；作为设置页未配置时的默认值 |
 | `FETCH_CATEGORY_ALLOWLIST` | `cs.AI,cs.CL,cs.CV,cs.GR,cs.MA,cs.MM` | 默认只保留这些 arXiv 分类；留空时回退到 `FETCH_CATEGORY_PREFIX` |
 | `FETCH_CATEGORY_PREFIX` | `cs.` | allowlist 留空时按前缀保留论文；`cs.` 表示 Computer Science |
+| `CORS_ALLOW_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | 浏览器直接访问后端时允许的前端来源，多个用逗号分隔 |
+
+前端开发服务器也可以用 `.env` 配置穿透相关参数：
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `VITE_BACKEND_URL` | `http://127.0.0.1:8000` | Vite 将 `/api` 和 `/figures` 代理到的后端地址 |
+| `VITE_ALLOWED_HOSTS` | 内置本项目常用穿透域名 | 允许访问 Vite dev server 的公网域名，多个用逗号分隔 |
+| `VITE_API_BASE_URL` | `/api` | 可选；不走 Vite 代理、让浏览器直接访问后端 API 时使用 |
+| `VITE_FIGURES_BASE_URL` | 从 `VITE_API_BASE_URL` 推导，默认 `/figures` | 可选；不走 Vite 代理时的 figure 静态资源地址 |
 
 ---
 
@@ -143,6 +157,25 @@ npm run dev
 
 浏览器打开 `http://localhost:5173`。Vite 自动把 `/api` 与 `/figures` 代理到 `127.0.0.1:8000`，无需 CORS。
 
+内网穿透前端开发服务器时，推荐仍只穿透 `5173`，让 Vite 在本机转发 API：
+
+```bash
+# frontend/.env
+VITE_BACKEND_URL=http://127.0.0.1:8000
+VITE_ALLOWED_HOSTS=你的公网前端域名
+```
+
+如果前端和后端分别穿透成两个公网域名，则前端 `.env` 指向后端公网地址，并在 `backend/.env` 放行前端来源：
+
+```bash
+# frontend/.env
+VITE_API_BASE_URL=https://你的后端域名/api
+VITE_FIGURES_BASE_URL=https://你的后端域名/figures
+
+# backend/.env
+CORS_ALLOW_ORIGINS=https://你的前端域名
+```
+
 生产构建：`npm run build` → `frontend/dist/`，可由 nginx / 任何静态服务器托管。
 
 ---
@@ -154,7 +187,7 @@ npm run dev
    - `category = cs.AI`
    - `keyword = diffusion model`
    关键词订阅默认会限制在 `FETCH_CATEGORY_ALLOWLIST=cs.AI,cs.CL,cs.CV,cs.GR,cs.MA,cs.MM` 对应的分类内；如果 allowlist 留空，则回退到 `FETCH_CATEGORY_PREFIX=cs.` 对应的 Computer Science 大类下。
-2. **任务** 页：点 “Fetch Now” 立即触发一次拉取（约 30s），或等每日 cron。
+2. **任务** 页：点 “Fetch Now” 提交一次后台拉取任务，或等每日 cron。
 3. **Inbox** 浏览新论文：自动出现中文摘要 + 自动 tag chips。
 4. 对感兴趣的点 **待阅读** → 后台立即跑基于 PDF 正文的 3 次 LLM 总结问答 + Docling figure 提取。
 5. **待阅读 → 论文详情**：左侧 markdown 三段总结，右侧 figure 缩略图。
@@ -180,7 +213,7 @@ npm run dev
 | `GET` | `/api/tags` | tag 库 + 每个 tag 的论文数 |
 | `PATCH` `DELETE` | `/api/tags/{id}` | 重命名 / 删除（级联清 PaperTag） |
 | `GET` | `/api/jobs?status=&limit=` | 后台任务列表（前端任务页 5s 轮询） |
-| `POST` | `/api/jobs/fetch` | 立即拉取（同步，会阻塞 ~30s） |
+| `POST` | `/api/jobs/fetch` | 立即提交拉取任务（返回 202，实际拉取在后台执行） |
 | `GET` | `/figures/{rel_path}` | 提取后的 figure（StaticFiles） |
 
 cURL 示例：

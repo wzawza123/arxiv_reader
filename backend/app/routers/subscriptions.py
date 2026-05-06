@@ -35,6 +35,7 @@ def create_sub(payload: SubscriptionIn, db: Session = Depends(get_db)):
 
 
 @router.patch("/{sub_id}", response_model=SubscriptionOut)
+@router.post("/{sub_id}/update", response_model=SubscriptionOut)
 def update_sub(sub_id: int, payload: SubscriptionIn, db: Session = Depends(get_db)):
     sub = db.get(Subscription, sub_id)
     if sub is None:
@@ -49,6 +50,7 @@ def update_sub(sub_id: int, payload: SubscriptionIn, db: Session = Depends(get_d
 
 
 @router.delete("/{sub_id}")
+@router.post("/{sub_id}/delete")
 def delete_sub(sub_id: int, db: Session = Depends(get_db)):
     sub = db.get(Subscription, sub_id)
     if sub is None:

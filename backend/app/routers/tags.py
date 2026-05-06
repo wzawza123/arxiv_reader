@@ -72,6 +72,7 @@ def create_tag(payload: TagIn, db: Session = Depends(get_db)):
 
 
 @router.delete("/{tag_id}")
+@router.post("/{tag_id}/delete")
 def delete_tag(tag_id: int, db: Session = Depends(get_db)):
     tag = db.get(Tag, tag_id)
     if tag is None:
@@ -82,6 +83,7 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{tag_id}", response_model=TagOut)
+@router.post("/{tag_id}/update", response_model=TagOut)
 def update_tag(tag_id: int, payload: TagPatch, db: Session = Depends(get_db)):
     tag = db.get(Tag, tag_id)
     if tag is None:

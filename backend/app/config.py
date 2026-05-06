@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     FETCH_LOOKBACK_DAYS: int = 2
     FETCH_CATEGORY_ALLOWLIST: str = "cs.AI,cs.CL,cs.CV,cs.GR,cs.MA,cs.MM"
     FETCH_CATEGORY_PREFIX: str = "cs."
+    CORS_ALLOW_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
     SUMMARY_PDF_MAX_CHARS: int = 60000
 
     @property
@@ -51,6 +52,14 @@ class Settings(BaseSettings):
     @property
     def db_url(self) -> str:
         return f"sqlite:///{Path(self.DB_PATH).resolve()}"
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.CORS_ALLOW_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
 
 settings = Settings()
