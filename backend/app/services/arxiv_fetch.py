@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
@@ -11,6 +12,8 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import Paper, PaperStatus, Subscription, SubscriptionKind
 from .app_settings import get_fetch_lookback_days
+
+_ARXIV_ID_RE = re.compile(r"^\d{4}\.\d{4,5}(v\d+)?$")
 
 log = logging.getLogger(__name__)
 
@@ -121,6 +124,84 @@ def _search_one(sub: Subscription, max_results: int) -> Iterable[arxiv.Result]:
         sort_order=arxiv.SortOrder.Descending,
     )
     return client.results(search)
+
+
+def _paper_to_dict(r: arxiv.Result) -> dict:
+    arxiv_id = _normalize_arxiv_id(r.entry_id)
+    return {
+        "arxiv_id": arxiv_id,
+        "title": (r.title or "").strip().replace("\n", " "),
+        "authors": [a.name for a in (r.authors or [])],
+        "abstract": (r.summary or "").strip(),
+        "categories": list(r.categories or []),
+        "pdf_url": r.pdf_url or "",
+        "abs_url": r.entry_id,
+        "published_at": _to_naive_utc(r.published).isoformat(),
+    }
+
+
+def search_arxiv_by_query(query: str, max_results: int = 20) -> list[dict]:
+    """Search arXiv by title keyword or bare arXiv ID; returns candidates without saving."""
+    query = query.strip()
+    client = arxiv.Client(page_size=min(max_results, 100), delay_seconds=3.0, num_retries=3)
+
+    if _ARXIV_ID_RE.match(query):
+        bare_id = _normalize_arxiv_id(query)
+        search = arxiv.Search(id_list=[bare_id], max_results=1)
+    else:
+        safe_q = query.replace('"', "")
+        arxiv_query = f'ti:"{safe_q}"'
+        search = arxiv.Search(
+            query=arxiv_query,
+            max_results=max_results,
+            sort_by=arxiv.SortCriterion.Relevance,
+        )
+
+    return [_paper_to_dict(r) for r in client.results(search)]
+
+
+def import_arxiv_papers(db: Session, arxiv_ids: list[str]) -> tuple[list[int], list[str]]:
+    """Fetch specific papers from arXiv by ID and insert into DB.
+
+    Returns (new_paper_ids, already_existing_arxiv_ids).
+    """
+    normalized = [_normalize_arxiv_id(aid) for aid in arxiv_ids]
+
+    existing_ids: set[str] = set(
+        db.execute(select(Paper.arxiv_id).where(Paper.arxiv_id.in_(normalized))).scalars().all()
+    )
+    to_fetch = [aid for aid in normalized if aid not in existing_ids]
+    skipped = list(existing_ids)
+
+    if not to_fetch:
+        return [], skipped
+
+    client = arxiv.Client(page_size=len(to_fetch), delay_seconds=1.0, num_retries=3)
+    search = arxiv.Search(id_list=to_fetch, max_results=len(to_fetch))
+
+    to_fetch_set = set(to_fetch)
+    new_ids: list[int] = []
+    for r in client.results(search):
+        arxiv_id = _normalize_arxiv_id(r.entry_id)
+        if arxiv_id not in to_fetch_set:
+            continue
+        paper = Paper(
+            arxiv_id=arxiv_id,
+            title=(r.title or "").strip().replace("\n", " "),
+            authors=[a.name for a in (r.authors or [])],
+            abstract=(r.summary or "").strip(),
+            categories=list(r.categories or []),
+            pdf_url=r.pdf_url or "",
+            abs_url=r.entry_id,
+            published_at=_to_naive_utc(r.published),
+            status=PaperStatus.NEW,
+        )
+        db.add(paper)
+        db.flush()
+        new_ids.append(paper.id)
+
+    db.commit()
+    return new_ids, skipped
 
 
 def fetch_subscriptions(db: Session) -> list[int]:

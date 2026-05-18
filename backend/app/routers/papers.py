@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
 from ..models import Figure, Job, Paper, PaperStatus, PaperTag, Tag, JobKind
-from ..schemas import PaperListItem, PaperDetail, PaperNeighbors, PaperPatch
+from ..schemas import PaperListItem, PaperDetail, PaperNeighbors, PaperPatch, ArxivCandidate, ArxivImportIn, ArxivImportOut
 from ..services.app_settings import (
     HEAVY_PROCESSING_ON_FETCH,
     HEAVY_PROCESSING_ON_TO_READ,
@@ -18,6 +18,7 @@ from ..services.app_settings import (
 from ..services.pdfs import delete_downloaded_pdf
 from ..workers.queue import (
     enqueue_heavy_for_to_read,
+    enqueue_light_for_new_paper,
     enqueue_missing_heavy_for_to_read,
     get_queue,
 )
@@ -184,6 +185,61 @@ def reprocess_paper(
     }
     job_id = q.enqueue(kind_map[stage], paper.id)
     return {"job_id": job_id}
+
+
+@router.get("/arxiv/search", response_model=list[ArxivCandidate])
+def search_arxiv(
+    q: str = Query(..., min_length=1),
+    max_results: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    import arxiv as arxiv_lib
+    from ..services.arxiv_fetch import search_arxiv_by_query
+
+    try:
+        candidates = search_arxiv_by_query(q, max_results)
+    except arxiv_lib.HTTPError as e:
+        if e.status == 429:
+            raise HTTPException(503, "arXiv API 请求频率限制，请稍等片刻后重试。")
+        raise HTTPException(502, f"arXiv API 错误: HTTP {e.status}")
+    except Exception as e:
+        log.exception("arxiv search failed: %s", e)
+        raise HTTPException(502, "arXiv 搜索失败，请稍后重试。")
+
+    arxiv_ids = [c["arxiv_id"] for c in candidates]
+    existing = {
+        row[0]: row[1]
+        for row in db.execute(
+            select(Paper.arxiv_id, Paper.id).where(Paper.arxiv_id.in_(arxiv_ids))
+        ).all()
+    }
+    for c in candidates:
+        c["already_imported"] = c["arxiv_id"] in existing
+        c["paper_id"] = existing.get(c["arxiv_id"])
+    return candidates
+
+
+@router.post("/arxiv/import", response_model=ArxivImportOut)
+def import_arxiv(body: ArxivImportIn, db: Session = Depends(get_db)):
+    import arxiv as arxiv_lib
+    from ..services.arxiv_fetch import import_arxiv_papers
+
+    try:
+        new_ids, skipped = import_arxiv_papers(db, body.arxiv_ids)
+    except arxiv_lib.HTTPError as e:
+        if e.status == 429:
+            raise HTTPException(503, "arXiv API 请求频率限制，请稍等片刻后重试。")
+        raise HTTPException(502, f"arXiv API 错误: HTTP {e.status}")
+    except Exception as e:
+        log.exception("arxiv import failed: %s", e)
+        raise HTTPException(502, "arXiv 导入失败，请稍后重试。")
+
+    heavy_trigger = get_heavy_processing_trigger(db)
+    for paper_id in new_ids:
+        enqueue_light_for_new_paper(paper_id)
+        if heavy_trigger == HEAVY_PROCESSING_ON_FETCH:
+            enqueue_heavy_for_to_read(paper_id)
+    return {"imported": new_ids, "skipped": skipped}
 
 
 @router.get("/stats/counts")

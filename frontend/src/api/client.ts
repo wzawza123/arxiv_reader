@@ -145,6 +145,30 @@ export const JobApi = {
       .then((r) => r.data),
 };
 
+export type ArxivCandidate = {
+  arxiv_id: string;
+  title: string;
+  authors: string[];
+  abstract: string;
+  categories: string[];
+  pdf_url: string;
+  abs_url: string;
+  published_at: string;
+  already_imported: boolean;
+  paper_id: number | null;
+};
+
+export const ArxivApi = {
+  search: (q: string, max_results = 20) =>
+    api
+      .get<ArxivCandidate[]>("/papers/arxiv/search", { params: { q, max_results } })
+      .then((r) => r.data),
+  import: (arxiv_ids: string[]) =>
+    api
+      .post<{ imported: number[]; skipped: string[] }>("/papers/arxiv/import", { arxiv_ids })
+      .then((r) => r.data),
+};
+
 export const SettingsApi = {
   getFetch: () => api.get<FetchSettings>("/settings/fetch").then((r) => r.data),
   updateFetch: (body: {

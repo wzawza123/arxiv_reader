@@ -21,7 +21,16 @@
       "Bash(rtk tsc *)",
       "Bash(rtk npm *)",
       "Bash(rtk wc *)",
-      "Bash(rtk find *)"
+      "Bash(rtk find *)",
+      "Bash(python *)",
+      "Bash(rtk pip *)",
+      "Bash(python3 -c \"import arxiv; print\\('ok'\\)\")",
+      "Bash(rtk grep *)",
+      "Bash(/opt/data/private/envs/agent/bin/python -c ' *)",
+      "Bash(tmux list-sessions *)",
+      "Bash(tmux list-windows *)",
+      "Bash(tmux capture-pane *)",
+      "Bash(tmux send-keys *)"
     ]
   }
 }

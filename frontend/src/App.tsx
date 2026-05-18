@@ -6,6 +6,7 @@ import NotInterested from "./pages/NotInterested";
 import Settings from "./pages/Settings";
 import PaperDetail from "./pages/PaperDetail";
 import Jobs from "./pages/Jobs";
+import Search from "./pages/Search";
 import { useQuery } from "@tanstack/react-query";
 import { PaperApi } from "./api/client";
 
@@ -62,6 +63,7 @@ export default function App() {
               count={counts?.not_interested}
             />
             <NavItem to="/jobs" label="任务" />
+            <NavItem to="/search" label="搜索归档" />
             <NavItem to="/settings" label="设置" />
           </nav>
         </div>
@@ -73,6 +75,7 @@ export default function App() {
           <Route path="/read" element={<Read />} />
           <Route path="/not-interested" element={<NotInterested />} />
           <Route path="/jobs" element={<Jobs />} />
+          <Route path="/search" element={<Search />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/papers/:id" element={<PaperDetail />} />
         </Routes>

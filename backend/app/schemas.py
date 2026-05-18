@@ -109,6 +109,28 @@ class FetchSettingsIn(BaseModel):
     heavy_processing_trigger: Optional[HeavyProcessingTrigger] = None
 
 
+class ArxivCandidate(BaseModel):
+    arxiv_id: str
+    title: str
+    authors: List[str]
+    abstract: str
+    categories: List[str]
+    pdf_url: str
+    abs_url: str
+    published_at: str
+    already_imported: bool
+    paper_id: Optional[int] = None
+
+
+class ArxivImportIn(BaseModel):
+    arxiv_ids: List[str]
+
+
+class ArxivImportOut(BaseModel):
+    imported: List[int]
+    skipped: List[str]
+
+
 class FetchSettingsOut(BaseModel):
     fetch_lookback_days: int
     default_fetch_lookback_days: int
